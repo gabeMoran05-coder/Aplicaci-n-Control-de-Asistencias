@@ -17,6 +17,7 @@ Sistema web para registrar asistencias escolares por alumno, grado y grupo.
 ```bash
 pip install -r requirements.txt
 python manage.py migrate
+python manage.py inicializar_grupos
 python manage.py createsuperuser
 python manage.py runserver
 ```
@@ -35,7 +36,7 @@ El panel para directivos o prefectos esta en:
 http://127.0.0.1:8000/control/
 ` 
 
-Permite filtrar por grupo, cambiar de semana y marcar manualmente presente, retardo, justificado o ausente.
+Muestra alumnos por grado y grupo. Al entrar al perfil de un alumno se ve su calendario mensual con colores para presente, retardo, justificado y ausente.
 
 ## Pantalla kiosco
 
@@ -61,4 +62,5 @@ Y configura `DJANGO_ALLOWED_HOSTS` con la IP local de la computadora que corre e
 - Crear pantalla para emitir/asociar credenciales NFC.
 - Crear dashboard diario por grado y grupo.
 - Integrar WhatsApp Business Cloud API.
+
 

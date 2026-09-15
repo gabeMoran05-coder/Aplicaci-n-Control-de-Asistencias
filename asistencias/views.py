@@ -1,5 +1,6 @@
-﻿import json
-from datetime import datetime, timedelta
+﻿import calendar
+import json
+from datetime import date, datetime, timedelta
 
 from django.db import IntegrityError
 from django.db.models import Q
@@ -12,7 +13,27 @@ from django.views.decorators.http import require_POST
 from .models import Alumno, Grupo, NotificacionWhatsApp, RegistroAsistencia
 
 
-DIAS_SEMANA = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes"]
+GRADOS_CONTROL = [
+    {"orden": 1, "nombre": "1ro"},
+    {"orden": 2, "nombre": "2do"},
+    {"orden": 3, "nombre": "3ro"},
+]
+GRUPOS_CONTROL = ["A", "B", "C", "D"]
+MESES = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+]
+DIAS_CALENDARIO = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]
 
 
 def kiosco_asistencia(request):
@@ -20,65 +41,79 @@ def kiosco_asistencia(request):
 
 
 def control_semanal(request):
-    hoy = timezone.localdate()
-    semana_inicio = _obtener_inicio_semana(request.GET.get("semana"), hoy)
-    semana_fin = semana_inicio + timedelta(days=4)
-    dias = [semana_inicio + timedelta(days=i) for i in range(5)]
+    grupos = list(
+        Grupo.objects.select_related("grado", "ciclo_escolar")
+        .filter(activo=True)
+        .order_by("grado__orden", "nombre")
+    )
+    alumnos_por_grupo = _alumnos_por_grupo(grupos)
+    tablero = []
 
-    grupos = Grupo.objects.select_related("grado", "ciclo_escolar").filter(activo=True)
-    grupo_id = request.GET.get("grupo")
-    grupo = None
-    if grupo_id:
-        grupo = get_object_or_404(grupos, pk=grupo_id)
-    else:
-        grupo = grupos.first()
-
-    alumnos = Alumno.objects.none()
-    filas = []
-    resumen = {"presentes": 0, "retardos": 0, "justificados": 0, "ausentes": 0}
-
-    if grupo:
-        alumnos = grupo.alumnos.filter(activo=True).order_by(
-            "apellido_paterno", "apellido_materno", "nombres"
-        )
-        registros = RegistroAsistencia.objects.filter(
-            alumno__in=alumnos,
-            tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
-            fecha__range=(semana_inicio, semana_fin),
-        )
-        registros_por_alumno_fecha = {
-            (registro.alumno_id, registro.fecha): registro for registro in registros
-        }
-
-        for alumno in alumnos:
-            celdas = []
-            for dia in dias:
-                registro = registros_por_alumno_fecha.get((alumno.id, dia))
-                celda = _crear_celda_control(alumno, dia, registro, hoy)
-                if celda["estado"] == "presente":
-                    resumen["presentes"] += 1
-                elif celda["estado"] == "retardo":
-                    resumen["retardos"] += 1
-                elif celda["estado"] == "justificado":
-                    resumen["justificados"] += 1
-                elif celda["estado"] == "ausente":
-                    resumen["ausentes"] += 1
-                celdas.append(celda)
-            filas.append({"alumno": alumno, "celdas": celdas})
+    for grado in GRADOS_CONTROL:
+        tarjetas = []
+        for letra in GRUPOS_CONTROL:
+            grupo = _buscar_grupo(grupos, grado["orden"], letra)
+            alumnos = alumnos_por_grupo.get(grupo.id, []) if grupo else []
+            tarjetas.append(
+                {
+                    "grado": grado,
+                    "letra": letra,
+                    "grupo": grupo,
+                    "alumnos": alumnos,
+                    "total": len(alumnos),
+                }
+            )
+        tablero.append({"grado": grado, "tarjetas": tarjetas})
 
     contexto = {
-        "grupos": grupos,
-        "grupo": grupo,
-        "dias": zip(DIAS_SEMANA, dias),
-        "filas": filas,
-        "semana_inicio": semana_inicio,
-        "semana_fin": semana_fin,
-        "semana_anterior": semana_inicio - timedelta(days=7),
-        "semana_siguiente": semana_inicio + timedelta(days=7),
-        "hoy": hoy,
-        "resumen": resumen,
+        "tablero": tablero,
+        "total_alumnos": sum(len(alumnos) for alumnos in alumnos_por_grupo.values()),
+        "total_grupos": len(grupos),
+        "hoy": timezone.localdate(),
     }
     return render(request, "asistencias/control_semanal.html", contexto)
+
+
+def perfil_alumno(request, alumno_id):
+    alumno = get_object_or_404(
+        Alumno.objects.select_related("grupo", "grupo__grado", "grupo__ciclo_escolar"),
+        pk=alumno_id,
+        activo=True,
+    )
+    hoy = timezone.localdate()
+    mes_inicio = _obtener_inicio_mes(request.GET.get("mes"), hoy)
+    mes_fin = _ultimo_dia_mes(mes_inicio)
+    calendario = _calendario_alumno(alumno, mes_inicio, mes_fin, hoy)
+
+    registros_mes = RegistroAsistencia.objects.filter(
+        alumno=alumno,
+        tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
+        fecha__range=(mes_inicio, mes_fin),
+    )
+    resumen = {"presentes": 0, "retardos": 0, "justificados": 0, "ausentes": 0}
+    for registro in registros_mes:
+        estado = _estado_visual(registro.estado)
+        if estado == "presente":
+            resumen["presentes"] += 1
+        elif estado == "retardo":
+            resumen["retardos"] += 1
+        elif estado == "justificado":
+            resumen["justificados"] += 1
+        elif estado == "ausente":
+            resumen["ausentes"] += 1
+
+    contexto = {
+        "alumno": alumno,
+        "calendario": calendario,
+        "dias_calendario": DIAS_CALENDARIO,
+        "mes_inicio": mes_inicio,
+        "mes_nombre": MESES[mes_inicio.month - 1],
+        "mes_anterior": _sumar_meses(mes_inicio, -1),
+        "mes_siguiente": _sumar_meses(mes_inicio, 1),
+        "resumen": resumen,
+        "hoy": hoy,
+    }
+    return render(request, "asistencias/perfil_alumno.html", contexto)
 
 
 @require_POST
@@ -104,16 +139,14 @@ def marcar_asistencia_manual(request):
             "hora": timezone.localtime(),
             "estado": estado,
             "registrado_por": request.user if request.user.is_authenticated else None,
-            "observaciones": "Registro manual desde control semanal.",
+            "observaciones": "Registro manual desde perfil de alumno.",
         },
     )
 
     if creado and estado != RegistroAsistencia.Estado.AUSENTE:
         _crear_notificaciones_whatsapp(registro)
 
-    url = reverse("asistencias:control")
-    query = f"?grupo={alumno.grupo_id}&semana={_inicio_semana(fecha).isoformat()}"
-    return HttpResponseRedirect(url + query)
+    return HttpResponseRedirect(_destino_post(request, alumno, fecha))
 
 
 @require_POST
@@ -126,9 +159,7 @@ def limpiar_asistencia_manual(request):
         tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
     ).delete()
 
-    url = reverse("asistencias:control")
-    query = f"?grupo={alumno.grupo_id}&semana={_inicio_semana(fecha).isoformat()}"
-    return HttpResponseRedirect(url + query)
+    return HttpResponseRedirect(_destino_post(request, alumno, fecha))
 
 
 @require_POST
@@ -196,48 +227,103 @@ def registrar_asistencia_kiosco(request):
     )
 
 
-def _obtener_inicio_semana(valor, hoy):
+def _alumnos_por_grupo(grupos):
+    resultado = {grupo.id: [] for grupo in grupos}
+    alumnos = (
+        Alumno.objects.select_related("grupo", "grupo__grado")
+        .filter(grupo__in=grupos, activo=True)
+        .order_by("apellido_paterno", "apellido_materno", "nombres")
+    )
+    for alumno in alumnos:
+        resultado.setdefault(alumno.grupo_id, []).append(alumno)
+    return resultado
+
+
+def _buscar_grupo(grupos, grado_orden, letra):
+    for grupo in grupos:
+        if grupo.grado.orden == grado_orden and grupo.nombre.upper() == letra:
+            return grupo
+    return None
+
+
+def _obtener_inicio_mes(valor, hoy):
     if valor:
         try:
-            fecha = datetime.strptime(valor, "%Y-%m-%d").date()
+            fecha = datetime.strptime(valor, "%Y-%m").date()
         except ValueError:
             fecha = hoy
     else:
         fecha = hoy
-    return _inicio_semana(fecha)
+    return fecha.replace(day=1)
 
 
-def _inicio_semana(fecha):
-    return fecha - timedelta(days=fecha.weekday())
+def _ultimo_dia_mes(mes_inicio):
+    _, ultimo = calendar.monthrange(mes_inicio.year, mes_inicio.month)
+    return mes_inicio.replace(day=ultimo)
 
 
-def _crear_celda_control(alumno, dia, registro, hoy):
+def _sumar_meses(mes_inicio, cantidad):
+    mes = mes_inicio.month - 1 + cantidad
+    year = mes_inicio.year + mes // 12
+    month = mes % 12 + 1
+    return date(year, month, 1)
+
+
+def _calendario_alumno(alumno, mes_inicio, mes_fin, hoy):
+    registros = RegistroAsistencia.objects.filter(
+        alumno=alumno,
+        tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
+        fecha__range=(mes_inicio, mes_fin),
+    )
+    registros_por_fecha = {registro.fecha: registro for registro in registros}
+    semanas = []
+
+    for semana in calendar.Calendar(firstweekday=0).monthdatescalendar(
+        mes_inicio.year, mes_inicio.month
+    ):
+        dias = []
+        for dia in semana:
+            fuera_mes = dia.month != mes_inicio.month
+            registro = registros_por_fecha.get(dia)
+            dias.append(_crear_dia_calendario(alumno, dia, registro, hoy, fuera_mes))
+        semanas.append(dias)
+    return semanas
+
+
+def _crear_dia_calendario(alumno, dia, registro, hoy, fuera_mes):
+    if fuera_mes:
+        return {"fuera_mes": True, "fecha": dia}
+
     if registro:
         estado = _estado_visual(registro.estado)
-        return {
-            "alumno_id": alumno.id,
-            "fecha": dia,
-            "estado": estado,
-            "etiqueta": _etiqueta_estado(registro.estado),
-            "hora": registro.hora.strftime("%H:%M"),
-            "editable": dia <= hoy,
-        }
-
-    if dia > hoy:
+        etiqueta = _etiqueta_estado(registro.estado)
+        hora = registro.hora.strftime("%H:%M")
+    elif dia > hoy:
         estado = "futuro"
         etiqueta = "Pendiente"
+        hora = ""
     else:
         estado = "sin_marcar"
         etiqueta = "Sin marcar"
+        hora = ""
 
     return {
+        "fuera_mes": False,
         "alumno_id": alumno.id,
         "fecha": dia,
+        "dia": dia.day,
         "estado": estado,
         "etiqueta": etiqueta,
-        "hora": "",
+        "hora": hora,
         "editable": dia <= hoy,
     }
+
+
+def _destino_post(request, alumno, fecha):
+    siguiente = request.POST.get("next") or ""
+    if siguiente.startswith("/") and not siguiente.startswith("//"):
+        return siguiente
+    return reverse("asistencias:perfil_alumno", args=[alumno.id]) + f"?mes={fecha:%Y-%m}"
 
 
 def _estado_visual(estado):

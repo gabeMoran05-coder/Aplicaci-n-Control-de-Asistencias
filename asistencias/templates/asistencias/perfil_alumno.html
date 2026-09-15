@@ -1,0 +1,473 @@
+﻿<!doctype html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ alumno.nombre_completo }} - Asistencias</title>
+    <style>
+        :root {
+            --brand: #1177ad;
+            --brand-dark: #0c6395;
+            --brand-soft: #e8f5fc;
+            --page: #f2f8fc;
+            --panel: #ffffff;
+            --ink: #173044;
+            --muted: #60798b;
+            --line: #cfe3ee;
+            --green: #dff7ec;
+            --green-ink: #08744f;
+            --yellow: #fff0ca;
+            --yellow-ink: #8a5c00;
+            --blue: #e2f2ff;
+            --blue-ink: #0d659c;
+            --red: #ffe1dd;
+            --red-ink: #a82018;
+            --gray: #edf3f7;
+            --gray-ink: #637484;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, Helvetica, sans-serif;
+            background: var(--page);
+            color: var(--ink);
+        }
+
+        .topbar {
+            background: var(--brand);
+            color: white;
+            padding: 24px clamp(18px, 4vw, 54px) 26px;
+            box-shadow: 0 12px 30px rgba(18, 76, 110, .18);
+        }
+
+        .brand-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+
+        .logo {
+            width: 58px;
+            height: 58px;
+            display: grid;
+            place-items: center;
+            border: 2px solid rgba(255, 255, 255, .75);
+            border-radius: 8px;
+            font-size: 28px;
+            font-weight: 900;
+        }
+
+        .brand-title {
+            font-size: clamp(34px, 5vw, 48px);
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .nav a {
+            min-height: 54px;
+            display: inline-grid;
+            place-items: center;
+            padding: 0 20px;
+            border-radius: 8px;
+            color: white;
+            text-decoration: none;
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .nav a.active {
+            background: rgba(255, 255, 255, .22);
+        }
+
+        .wrap {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 28px clamp(16px, 4vw, 46px) 54px;
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .button {
+            min-height: 52px;
+            display: inline-grid;
+            place-items: center;
+            padding: 0 18px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: white;
+            color: var(--ink);
+            text-decoration: none;
+            font-size: 18px;
+            font-weight: 900;
+        }
+
+        .button.primary {
+            background: var(--brand);
+            border-color: var(--brand);
+            color: white;
+        }
+
+        .profile {
+            display: grid;
+            grid-template-columns: 330px 1fr;
+            gap: 18px;
+            align-items: start;
+        }
+
+        .student-card,
+        .calendar-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            box-shadow: 0 12px 28px rgba(30, 90, 120, .08);
+        }
+
+        .student-card {
+            padding: 22px;
+            position: sticky;
+            top: 18px;
+        }
+
+        .photo {
+            width: 138px;
+            height: 138px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            margin-bottom: 18px;
+            background: var(--brand-soft);
+            color: var(--brand-dark);
+            font-size: 46px;
+            font-weight: 900;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 36px;
+            line-height: 1;
+            letter-spacing: 0;
+        }
+
+        .group {
+            margin-top: 10px;
+            color: var(--brand-dark);
+            font-size: 20px;
+            font-weight: 900;
+        }
+
+        .info {
+            display: grid;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .info-item {
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #f9fdff;
+        }
+
+        .info-item span {
+            display: block;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .info-item strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 16px;
+            overflow-wrap: anywhere;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .metric {
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 900;
+        }
+
+        .metric span { display: block; font-size: 12px; }
+        .metric strong { display: block; margin-top: 6px; font-size: 30px; line-height: 1; }
+        .metric.ok { background: var(--green); color: var(--green-ink); }
+        .metric.late { background: var(--yellow); color: var(--yellow-ink); }
+        .metric.note { background: var(--blue); color: var(--blue-ink); }
+        .metric.no { background: var(--red); color: var(--red-ink); }
+
+        .calendar-card { overflow: hidden; }
+
+        .calendar-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            padding: 20px;
+            border-bottom: 1px solid var(--line);
+            background: var(--brand-soft);
+        }
+
+        .month-title {
+            color: var(--brand-dark);
+            font-size: clamp(34px, 5vw, 52px);
+            font-weight: 900;
+            line-height: 1;
+            text-transform: capitalize;
+        }
+
+        .month-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .weekday-grid,
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(118px, 1fr));
+        }
+
+        .weekday {
+            padding: 14px 12px;
+            border-bottom: 1px solid var(--line);
+            border-right: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .weekday:last-child { border-right: 0; }
+
+        .day {
+            min-height: 178px;
+            padding: 10px;
+            border-right: 1px solid var(--line);
+            border-bottom: 1px solid var(--line);
+            background: white;
+        }
+
+        .day:nth-child(7n) { border-right: 0; }
+
+        .day.out { background: #f7fbfe; }
+
+        .date-number {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            background: #f2f8fc;
+            color: var(--ink);
+            font-size: 16px;
+            font-weight: 900;
+        }
+
+        .badge {
+            border-radius: 8px;
+            padding: 11px;
+            font-size: 15px;
+            font-weight: 900;
+            line-height: 1.1;
+        }
+
+        .badge.presente { background: var(--green); color: var(--green-ink); }
+        .badge.retardo { background: var(--yellow); color: var(--yellow-ink); }
+        .badge.justificado { background: var(--blue); color: var(--blue-ink); }
+        .badge.ausente { background: var(--red); color: var(--red-ink); }
+        .badge.sin_marcar,
+        .badge.futuro { background: var(--gray); color: var(--gray-ink); }
+
+        .time {
+            display: block;
+            margin-top: 5px;
+            font-size: 12px;
+        }
+
+        .marks {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .marks form { margin: 0; }
+
+        .mini {
+            width: 100%;
+            min-height: 34px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: white;
+            font-size: 12px;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        .mini.ok { color: var(--green-ink); }
+        .mini.late { color: var(--yellow-ink); }
+        .mini.note { color: var(--blue-ink); }
+        .mini.no { color: var(--red-ink); }
+        .mini.clear { grid-column: 1 / -1; color: var(--gray-ink); }
+
+        @media (max-width: 1180px) {
+            .profile { grid-template-columns: 1fr; }
+            .student-card { position: static; }
+            .weekday-grid,
+            .calendar-grid { grid-template-columns: repeat(7, minmax(98px, 1fr)); }
+        }
+
+        @media (max-width: 820px) {
+            .top-actions { align-items: flex-start; flex-direction: column; }
+            .calendar-head { align-items: flex-start; flex-direction: column; }
+            .weekday-grid { display: none; }
+            .calendar-grid { grid-template-columns: 1fr; }
+            .day { min-height: auto; border-right: 0; }
+            .nav a { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand-row">
+            <div class="logo">A</div>
+            <div class="brand-title">AsisteEscolar</div>
+        </div>
+        <nav class="nav" aria-label="Principal">
+            <a href="{% url 'asistencias:control' %}">Alumnos</a>
+            <a href="{% url 'asistencias:kiosco' %}">Kiosco</a>
+            <a href="/admin/">Admin</a>
+        </nav>
+    </header>
+
+    <main class="wrap">
+        <nav class="top-actions" aria-label="Navegacion de alumno">
+            <a class="button" href="{% url 'asistencias:control' %}">Volver a alumnos</a>
+            <a class="button primary" href="{% url 'asistencias:kiosco' %}">Abrir kiosco</a>
+        </nav>
+
+        <section class="profile">
+            <aside class="student-card">
+                <div class="photo">{{ alumno.nombres|first }}{{ alumno.apellido_paterno|first }}</div>
+                <h1>{{ alumno.nombre_completo }}</h1>
+                <div class="group">{{ alumno.grupo }}</div>
+
+                <div class="info">
+                    <div class="info-item"><span>Matricula</span><strong>{{ alumno.matricula }}</strong></div>
+                    <div class="info-item"><span>Codigo QR</span><strong>{{ alumno.codigo_qr }}</strong></div>
+                    <div class="info-item"><span>Codigo NFC</span><strong>{{ alumno.codigo_nfc|default:"Sin asignar" }}</strong></div>
+                </div>
+
+                <div class="summary" aria-label="Resumen mensual">
+                    <div class="metric ok"><span>Asistio</span><strong>{{ resumen.presentes }}</strong></div>
+                    <div class="metric late"><span>Retardo</span><strong>{{ resumen.retardos }}</strong></div>
+                    <div class="metric note"><span>Justif.</span><strong>{{ resumen.justificados }}</strong></div>
+                    <div class="metric no"><span>Ausente</span><strong>{{ resumen.ausentes }}</strong></div>
+                </div>
+            </aside>
+
+            <section class="calendar-card">
+                <header class="calendar-head">
+                    <div class="month-title">{{ mes_nombre }} {{ mes_inicio|date:"Y" }}</div>
+                    <div class="month-actions">
+                        <a class="button" href="?mes={{ mes_anterior|date:'Y-m' }}">Mes anterior</a>
+                        <a class="button" href="?mes={{ mes_siguiente|date:'Y-m' }}">Mes siguiente</a>
+                    </div>
+                </header>
+
+                <div class="weekday-grid" aria-hidden="true">
+                    {% for dia in dias_calendario %}<div class="weekday">{{ dia }}</div>{% endfor %}
+                </div>
+
+                <div class="calendar-grid">
+                    {% for semana in calendario %}
+                        {% for dia in semana %}
+                            {% if dia.fuera_mes %}
+                                <div class="day out"></div>
+                            {% else %}
+                                <article class="day">
+                                    <div class="date-number">{{ dia.dia }}</div>
+                                    <div class="badge {{ dia.estado }}">
+                                        {{ dia.etiqueta }}
+                                        {% if dia.hora %}<span class="time">{{ dia.hora }}</span>{% endif %}
+                                    </div>
+
+                                    {% if dia.editable %}
+                                        <div class="marks">
+                                            <form method="post" action="{% url 'asistencias:marcar_manual' %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="alumno_id" value="{{ alumno.id }}">
+                                                <input type="hidden" name="fecha" value="{{ dia.fecha|date:'Y-m-d' }}">
+                                                <input type="hidden" name="estado" value="a_tiempo">
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="mini ok" type="submit">Presente</button>
+                                            </form>
+                                            <form method="post" action="{% url 'asistencias:marcar_manual' %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="alumno_id" value="{{ alumno.id }}">
+                                                <input type="hidden" name="fecha" value="{{ dia.fecha|date:'Y-m-d' }}">
+                                                <input type="hidden" name="estado" value="retardo">
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="mini late" type="submit">Retardo</button>
+                                            </form>
+                                            <form method="post" action="{% url 'asistencias:marcar_manual' %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="alumno_id" value="{{ alumno.id }}">
+                                                <input type="hidden" name="fecha" value="{{ dia.fecha|date:'Y-m-d' }}">
+                                                <input type="hidden" name="estado" value="justificado">
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="mini note" type="submit">Justif.</button>
+                                            </form>
+                                            <form method="post" action="{% url 'asistencias:marcar_manual' %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="alumno_id" value="{{ alumno.id }}">
+                                                <input type="hidden" name="fecha" value="{{ dia.fecha|date:'Y-m-d' }}">
+                                                <input type="hidden" name="estado" value="ausente">
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="mini no" type="submit">Ausente</button>
+                                            </form>
+                                            <form method="post" action="{% url 'asistencias:limpiar_manual' %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="alumno_id" value="{{ alumno.id }}">
+                                                <input type="hidden" name="fecha" value="{{ dia.fecha|date:'Y-m-d' }}">
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="mini clear" type="submit">Limpiar</button>
+                                            </form>
+                                        </div>
+                                    {% endif %}
+                                </article>
+                            {% endif %}
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            </section>
+        </section>
+    </main>
+</body>
+</html>
