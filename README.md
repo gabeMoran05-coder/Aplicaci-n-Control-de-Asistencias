@@ -8,7 +8,7 @@ Sistema web para registrar asistencias escolares por alumno, grado y grupo.
 - Registro de alumnos con matricula, grupo, tutores, codigo QR y codigo NFC.
 - Registro de entrada y salida por fecha y hora.
 - Estado de asistencia: a tiempo, retardo, justificado o manual.
-- Pantalla kiosco para pared con lectura automatica NFC / QR.
+- Pantalla kiosco para pared con lectura automatica NFC / QR.`r`n- Panel semanal de lunes a viernes por grupo, con colores para asistencia, retardo, justificado y ausencia.
 - Cola de notificaciones de WhatsApp para avisar a los tutores cuando se registre una asistencia.
 - Panel administrativo de Django para gestionar los datos iniciales.
 
@@ -26,6 +26,16 @@ Despues entra a:
 ```text
 http://127.0.0.1:8000/admin/
 ```
+
+## Panel de control
+
+El panel para directivos o prefectos esta en:
+
+`	ext
+http://127.0.0.1:8000/control/
+` 
+
+Permite filtrar por grupo, cambiar de semana y marcar manualmente presente, retardo, justificado o ausente.
 
 ## Pantalla kiosco
 
@@ -51,3 +61,4 @@ Y configura `DJANGO_ALLOWED_HOSTS` con la IP local de la computadora que corre e
 - Crear pantalla para emitir/asociar credenciales NFC.
 - Crear dashboard diario por grado y grupo.
 - Integrar WhatsApp Business Cloud API.
+

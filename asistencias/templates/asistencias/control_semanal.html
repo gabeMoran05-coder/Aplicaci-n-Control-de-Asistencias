@@ -1,0 +1,425 @@
+﻿<!doctype html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Control semanal de asistencias</title>
+    <style>
+        :root {
+            --page: #f5f7fb;
+            --panel: #ffffff;
+            --ink: #17202a;
+            --muted: #647184;
+            --line: #d9e1ec;
+            --green: #dff7ec;
+            --green-ink: #0b6b4d;
+            --yellow: #fff1c7;
+            --yellow-ink: #8a5700;
+            --blue: #e0efff;
+            --blue-ink: #155a9c;
+            --red: #ffe2df;
+            --red-ink: #aa2419;
+            --gray: #eef2f7;
+            --gray-ink: #687386;
+            --dark: #16202f;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, Helvetica, sans-serif;
+            background: var(--page);
+            color: var(--ink);
+        }
+
+        .app {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 260px 1fr;
+        }
+
+        .sidebar {
+            background: var(--dark);
+            color: white;
+            padding: 24px;
+        }
+
+        .brand {
+            font-size: 24px;
+            font-weight: 900;
+            line-height: 1.05;
+            margin-bottom: 36px;
+        }
+
+        .nav {
+            display: grid;
+            gap: 10px;
+        }
+
+        .nav a {
+            color: white;
+            text-decoration: none;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .nav a.active {
+            background: white;
+            color: var(--dark);
+        }
+
+        .content {
+            min-width: 0;
+            padding: 24px;
+        }
+
+        .top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: clamp(28px, 4vw, 42px);
+            line-height: 1;
+            letter-spacing: 0;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .button,
+        select {
+            min-height: 42px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: white;
+            color: var(--ink);
+            padding: 0 14px;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .button.primary {
+            display: inline-grid;
+            place-items: center;
+            background: var(--dark);
+            color: white;
+            border-color: var(--dark);
+        }
+
+        .filters {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .metric {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .metric span {
+            display: block;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .metric strong {
+            display: block;
+            margin-top: 8px;
+            font-size: 32px;
+            line-height: 1;
+        }
+
+        .table-wrap {
+            overflow: auto;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            min-width: 980px;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid var(--line);
+            border-right: 1px solid var(--line);
+            padding: 12px;
+            vertical-align: top;
+        }
+
+        th:last-child,
+        td:last-child { border-right: 0; }
+        tr:last-child td { border-bottom: 0; }
+
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #f9fbfe;
+            color: var(--muted);
+            text-align: left;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+
+        .student-col {
+            width: 260px;
+            position: sticky;
+            left: 0;
+            z-index: 2;
+            background: white;
+        }
+
+        th.student-col {
+            z-index: 3;
+            background: #f9fbfe;
+        }
+
+        .student-name {
+            font-size: 16px;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .student-code {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .cell {
+            min-height: 142px;
+            display: grid;
+            gap: 10px;
+            align-content: start;
+        }
+
+        .state {
+            border-radius: 8px;
+            padding: 10px;
+            font-weight: 900;
+            line-height: 1.1;
+        }
+
+        .state.presente { background: var(--green); color: var(--green-ink); }
+        .state.retardo { background: var(--yellow); color: var(--yellow-ink); }
+        .state.justificado { background: var(--blue); color: var(--blue-ink); }
+        .state.ausente { background: var(--red); color: var(--red-ink); }
+        .state.sin_marcar,
+        .state.futuro { background: var(--gray); color: var(--gray-ink); }
+
+        .time {
+            display: block;
+            margin-top: 4px;
+            font-size: 13px;
+        }
+
+        .mark-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .mark-actions form { margin: 0; }
+
+        .mini {
+            width: 100%;
+            min-height: 32px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            background: white;
+            color: var(--ink);
+            font-size: 12px;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        .mini.ok { color: var(--green-ink); }
+        .mini.late { color: var(--yellow-ink); }
+        .mini.note { color: var(--blue-ink); }
+        .mini.no { color: var(--red-ink); }
+        .mini.clear { grid-column: 1 / -1; color: var(--gray-ink); }
+
+        .empty {
+            padding: 48px;
+            text-align: center;
+            color: var(--muted);
+            font-weight: 800;
+        }
+
+        @media (max-width: 900px) {
+            .app { grid-template-columns: 1fr; }
+            .sidebar { padding: 16px; }
+            .brand { margin-bottom: 16px; }
+            .nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .top { flex-direction: column; }
+            .actions { justify-content: flex-start; }
+            .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        @media (max-width: 560px) {
+            .content { padding: 16px; }
+            .summary { grid-template-columns: 1fr; }
+            .nav { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="brand">Control de Asistencias</div>
+            <nav class="nav" aria-label="Principal">
+                <a class="active" href="{% url 'asistencias:control' %}">Control semanal</a>
+                <a href="{% url 'asistencias:kiosco' %}">Kiosco</a>
+                <a href="/admin/">Admin</a>
+            </nav>
+        </aside>
+
+        <main class="content">
+            <section class="top">
+                <div>
+                    <h1>Asistencias</h1>
+                    <div class="subtitle">
+                        Semana del {{ semana_inicio|date:"d/m/Y" }} al {{ semana_fin|date:"d/m/Y" }}
+                    </div>
+                </div>
+                <div class="actions">
+                    <a class="button" href="?grupo={{ grupo.id }}&semana={{ semana_anterior|date:'Y-m-d' }}">Semana anterior</a>
+                    <a class="button" href="?grupo={{ grupo.id }}&semana={{ semana_siguiente|date:'Y-m-d' }}">Semana siguiente</a>
+                    <a class="button primary" href="{% url 'asistencias:kiosco' %}">Abrir kiosco</a>
+                </div>
+            </section>
+
+            <form class="filters" method="get">
+                <label for="grupo"><strong>Grupo</strong></label>
+                <select id="grupo" name="grupo" onchange="this.form.submit()">
+                    {% for item in grupos %}
+                        <option value="{{ item.id }}" {% if grupo and item.id == grupo.id %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="semana" value="{{ semana_inicio|date:'Y-m-d' }}">
+            </form>
+
+            <section class="summary" aria-label="Resumen semanal">
+                <div class="metric"><span>Asistencias</span><strong>{{ resumen.presentes }}</strong></div>
+                <div class="metric"><span>Retardos</span><strong>{{ resumen.retardos }}</strong></div>
+                <div class="metric"><span>Justificados</span><strong>{{ resumen.justificados }}</strong></div>
+                <div class="metric"><span>Ausencias</span><strong>{{ resumen.ausentes }}</strong></div>
+            </section>
+
+            <section class="table-wrap">
+                {% if filas %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="student-col">Alumno</th>
+                                {% for nombre_dia, fecha in dias %}
+                                    <th>{{ nombre_dia }}<br>{{ fecha|date:"d/m" }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for fila in filas %}
+                                <tr>
+                                    <td class="student-col">
+                                        <div class="student-name">{{ fila.alumno.nombre_completo }}</div>
+                                        <div class="student-code">{{ fila.alumno.matricula }}</div>
+                                    </td>
+                                    {% for celda in fila.celdas %}
+                                        <td>
+                                            <div class="cell">
+                                                <div class="state {{ celda.estado }}">
+                                                    {{ celda.etiqueta }}
+                                                    {% if celda.hora %}<span class="time">{{ celda.hora }}</span>{% endif %}
+                                                </div>
+                                                {% if celda.editable %}
+                                                    <div class="mark-actions">
+                                                        <form method="post" action="{% url 'asistencias:marcar_manual' %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="alumno_id" value="{{ celda.alumno_id }}">
+                                                            <input type="hidden" name="fecha" value="{{ celda.fecha|date:'Y-m-d' }}">
+                                                            <input type="hidden" name="estado" value="a_tiempo">
+                                                            <button class="mini ok" type="submit">Presente</button>
+                                                        </form>
+                                                        <form method="post" action="{% url 'asistencias:marcar_manual' %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="alumno_id" value="{{ celda.alumno_id }}">
+                                                            <input type="hidden" name="fecha" value="{{ celda.fecha|date:'Y-m-d' }}">
+                                                            <input type="hidden" name="estado" value="retardo">
+                                                            <button class="mini late" type="submit">Retardo</button>
+                                                        </form>
+                                                        <form method="post" action="{% url 'asistencias:marcar_manual' %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="alumno_id" value="{{ celda.alumno_id }}">
+                                                            <input type="hidden" name="fecha" value="{{ celda.fecha|date:'Y-m-d' }}">
+                                                            <input type="hidden" name="estado" value="justificado">
+                                                            <button class="mini note" type="submit">Justif.</button>
+                                                        </form>
+                                                        <form method="post" action="{% url 'asistencias:marcar_manual' %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="alumno_id" value="{{ celda.alumno_id }}">
+                                                            <input type="hidden" name="fecha" value="{{ celda.fecha|date:'Y-m-d' }}">
+                                                            <input type="hidden" name="estado" value="ausente">
+                                                            <button class="mini no" type="submit">Ausente</button>
+                                                        </form>
+                                                        <form method="post" action="{% url 'asistencias:limpiar_manual' %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="alumno_id" value="{{ celda.alumno_id }}">
+                                                            <input type="hidden" name="fecha" value="{{ celda.fecha|date:'Y-m-d' }}">
+                                                            <button class="mini clear" type="submit">Limpiar</button>
+                                                        </form>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="empty">Agrega un grupo y alumnos en el admin para comenzar.</div>
+                {% endif %}
+            </section>
+        </main>
+    </div>
+</body>
+</html>

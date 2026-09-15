@@ -124,6 +124,7 @@ class RegistroAsistencia(TimeStampedModel):
         A_TIEMPO = "a_tiempo", "A tiempo"
         RETARDO = "retardo", "Retardo"
         JUSTIFICADO = "justificado", "Justificado"
+        AUSENTE = "ausente", "Ausente"
         MANUAL = "manual", "Manual"
 
     alumno = models.ForeignKey(
@@ -196,4 +197,6 @@ class NotificacionWhatsApp(TimeStampedModel):
 
     def __str__(self):
         return f"{self.tutor} - {self.get_estado_display()}"
+
+
 
