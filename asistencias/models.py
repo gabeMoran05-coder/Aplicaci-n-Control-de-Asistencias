@@ -98,6 +98,7 @@ class Alumno(TimeStampedModel):
     grupo = models.ForeignKey(Grupo, on_delete=models.PROTECT, related_name="alumnos")
     tutores = models.ManyToManyField(Tutor, related_name="alumnos", blank=True)
     codigo_qr = models.CharField(max_length=80, unique=True)
+    codigo_nfc = models.CharField(max_length=80, unique=True, null=True, blank=True)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -195,3 +196,4 @@ class NotificacionWhatsApp(TimeStampedModel):
 
     def __str__(self):
         return f"{self.tutor} - {self.get_estado_display()}"
+

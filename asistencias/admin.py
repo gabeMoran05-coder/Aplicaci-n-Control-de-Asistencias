@@ -53,6 +53,7 @@ class AlumnoAdmin(admin.ModelAdmin):
         "apellido_paterno",
         "apellido_materno",
         "codigo_qr",
+        "codigo_nfc",
     )
     filter_horizontal = ("tutores",)
 

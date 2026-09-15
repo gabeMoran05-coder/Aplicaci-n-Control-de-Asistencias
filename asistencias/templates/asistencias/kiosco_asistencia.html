@@ -1,0 +1,314 @@
+﻿<!doctype html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kiosco de asistencia</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #17202a;
+            --muted: #5f6b7a;
+            --line: #d8dee8;
+            --ok: #147d64;
+            --ok-bg: #dff7ee;
+            --warn: #a15c00;
+            --warn-bg: #fff0d6;
+            --bad: #b42318;
+            --bad-bg: #ffe4e0;
+            --panel: #ffffff;
+            --page: #f4f7fb;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, Helvetica, sans-serif;
+            background: var(--page);
+            color: var(--ink);
+        }
+
+        .screen {
+            min-height: 100vh;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 24px;
+            padding: clamp(20px, 4vw, 56px);
+        }
+
+        .topbar,
+        .footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .school {
+            font-size: clamp(22px, 3vw, 40px);
+            font-weight: 800;
+            line-height: 1.05;
+        }
+
+        .clock {
+            text-align: right;
+            font-weight: 800;
+            font-size: clamp(32px, 5vw, 72px);
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .date {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: clamp(14px, 1.7vw, 22px);
+        }
+
+        .main {
+            display: grid;
+            place-items: center;
+        }
+
+        .status {
+            width: min(100%, 1100px);
+            min-height: 460px;
+            display: grid;
+            align-content: center;
+            justify-items: center;
+            gap: 24px;
+            padding: clamp(28px, 5vw, 72px);
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            box-shadow: 0 24px 70px rgba(24, 39, 75, 0.12);
+            text-align: center;
+            transition: background-color 160ms ease, border-color 160ms ease;
+        }
+
+        .status.ok {
+            background: var(--ok-bg);
+            border-color: #8edfc3;
+        }
+
+        .status.warn {
+            background: var(--warn-bg);
+            border-color: #f2c36d;
+        }
+
+        .status.bad {
+            background: var(--bad-bg);
+            border-color: #ffaaa0;
+        }
+
+        .eyebrow {
+            color: var(--muted);
+            font-size: clamp(18px, 2vw, 28px);
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .message {
+            max-width: 920px;
+            font-size: clamp(42px, 7vw, 92px);
+            font-weight: 900;
+            line-height: 1;
+            overflow-wrap: anywhere;
+        }
+
+        .student {
+            font-size: clamp(26px, 4vw, 54px);
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            color: var(--muted);
+            font-size: clamp(18px, 2vw, 28px);
+            font-weight: 700;
+        }
+
+        .pill {
+            min-width: 120px;
+            padding: 12px 16px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.62);
+        }
+
+        .footer {
+            color: var(--muted);
+            font-size: clamp(14px, 1.8vw, 22px);
+            font-weight: 700;
+        }
+
+        .reader-input {
+            position: fixed;
+            inset: auto auto 0 0;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @media (max-width: 720px) {
+            .topbar,
+            .footer {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .clock {
+                text-align: left;
+            }
+
+            .status {
+                min-height: 420px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="screen">
+        <header class="topbar">
+            <div class="school">Control de Asistencias</div>
+            <div>
+                <div class="clock" id="clock">--:--</div>
+                <div class="date" id="date">--</div>
+            </div>
+        </header>
+
+        <section class="main" aria-live="polite">
+            <div class="status" id="statusBox">
+                <div class="eyebrow" id="eyebrow">Entrada escolar</div>
+                <div class="message" id="message">Acerque su credencial</div>
+                <div class="student" id="student"></div>
+                <div class="meta" id="meta"></div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <span>Lectura automatica NFC / QR</span>
+            <span id="connection">Sistema listo</span>
+        </footer>
+    </main>
+
+    <input class="reader-input" id="readerInput" autocomplete="off" inputmode="none">
+
+    <script>
+        const input = document.getElementById("readerInput");
+        const statusBox = document.getElementById("statusBox");
+        const eyebrow = document.getElementById("eyebrow");
+        const message = document.getElementById("message");
+        const student = document.getElementById("student");
+        const meta = document.getElementById("meta");
+        const connection = document.getElementById("connection");
+        const clock = document.getElementById("clock");
+        const date = document.getElementById("date");
+        let resetTimer;
+
+        function focusReader() {
+            input.focus({ preventScroll: true });
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(";").shift();
+        }
+
+        function updateClock() {
+            const now = new Date();
+            clock.textContent = now.toLocaleTimeString("es-MX", {
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+            date.textContent = now.toLocaleDateString("es-MX", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+            });
+        }
+
+        function setIdle() {
+            statusBox.className = "status";
+            eyebrow.textContent = "Entrada escolar";
+            message.textContent = "Acerque su credencial";
+            student.textContent = "";
+            meta.innerHTML = "";
+            connection.textContent = "Sistema listo";
+        }
+
+        function showResult(kind, data) {
+            clearTimeout(resetTimer);
+            statusBox.className = `status ${kind}`;
+            eyebrow.textContent = data.mensaje || "Lectura recibida";
+            message.textContent = kind === "ok" ? "Bienvenido" : kind === "warn" ? "Ya registrado" : "Revisar credencial";
+            student.textContent = data.alumno || data.codigo || "";
+            meta.innerHTML = "";
+
+            if (data.grupo) addMeta(data.grupo);
+            if (data.hora) addMeta(data.hora);
+            if (data.fecha) addMeta(data.fecha);
+
+            connection.textContent = "Ultima lectura procesada";
+            resetTimer = setTimeout(setIdle, 5200);
+        }
+
+        function addMeta(text) {
+            const item = document.createElement("span");
+            item.className = "pill";
+            item.textContent = text;
+            meta.appendChild(item);
+        }
+
+        async function submitCode(code) {
+            connection.textContent = "Registrando...";
+            try {
+                const response = await fetch("{% url 'asistencias:registrar_kiosco' %}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": getCookie("csrftoken"),
+                    },
+                    body: JSON.stringify({ codigo: code }),
+                });
+                const data = await response.json();
+
+                if (response.ok && data.tipo === "registrado") {
+                    showResult("ok", data);
+                } else if (response.ok && data.tipo === "repetido") {
+                    showResult("warn", data);
+                } else {
+                    showResult("bad", data);
+                }
+            } catch (error) {
+                showResult("bad", { mensaje: "Sin conexion", codigo: code });
+            } finally {
+                input.value = "";
+                focusReader();
+            }
+        }
+
+        input.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            const code = input.value.trim();
+            input.value = "";
+            if (code) submitCode(code);
+        });
+
+        document.addEventListener("click", focusReader);
+        window.addEventListener("focus", focusReader);
+        updateClock();
+        setInterval(updateClock, 1000);
+        focusReader();
+    </script>
+</body>
+</html>
