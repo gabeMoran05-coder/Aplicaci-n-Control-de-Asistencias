@@ -1,101 +1,11 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es-MX">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Aplicacion Control de Asistencias</title>
     <style>
-        :root {
-            --blue: #1177ad;
-            --blue-dark: #0d5f8f;
-            --page: #f4f7fb;
-            --panel: #ffffff;
-            --ink: #17202a;
-            --muted: #667085;
-            --line: #d9e2ec;
-            --soft: #eef7fc;
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: Arial, Helvetica, sans-serif;
-            background: var(--page);
-            color: var(--ink);
-        }
-        .wrap {
-            width: min(1040px, calc(100% - 32px));
-            margin: 0 auto;
-            padding: 42px 0;
-        }
-        .hero,
-        .card {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 8px;
-        }
-        .hero {
-            padding: clamp(24px, 5vw, 48px);
-        }
-        .label {
-            color: var(--blue-dark);
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: .06em;
-        }
-        h1 {
-            margin: 12px 0 0;
-            font-size: clamp(36px, 7vw, 66px);
-            line-height: .95;
-            letter-spacing: 0;
-        }
-        .lead {
-            max-width: 760px;
-            margin: 18px 0 0;
-            color: var(--muted);
-            font-size: 20px;
-            line-height: 1.45;
-            font-weight: 700;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin-top: 16px;
-        }
-        .card {
-            padding: 18px;
-        }
-        .card h2 {
-            margin: 0 0 8px;
-            font-size: 22px;
-        }
-        .card p {
-            margin: 0;
-            color: var(--muted);
-            line-height: 1.45;
-            font-weight: 700;
-        }
-        .steps {
-            margin-top: 16px;
-            padding: 20px;
-            border-radius: 8px;
-            background: var(--soft);
-            border: 1px solid var(--line);
-        }
-        code {
-            display: inline-block;
-            margin-top: 8px;
-            padding: 8px 10px;
-            border-radius: 8px;
-            background: #ffffff;
-            border: 1px solid var(--line);
-            color: var(--blue-dark);
-            font-weight: 900;
-        }
-        @media (max-width: 760px) {
-            .grid { grid-template-columns: 1fr; }
-        }
+        :root{--blue:#1177ad;--page:#f6f8fb;--panel:#fff;--ink:#1f2937;--muted:#667085;--line:#d8e0ea;--soft:#eef6fb}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Arial,Helvetica,sans-serif;background:var(--page);color:var(--ink);font-size:16px;font-weight:400}.wrap{width:min(980px,calc(100% - 32px));margin:0 auto;padding:36px 0}.hero,.card{background:var(--panel);border:1px solid var(--line);border-radius:8px}.hero{padding:34px}.label{color:var(--muted);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}h1{margin:10px 0 0;font-size:clamp(30px,5vw,48px);line-height:1.05;letter-spacing:0;font-weight:500}.lead{max-width:760px;margin:16px 0 0;color:var(--muted);font-size:18px;line-height:1.5;font-weight:400}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}.card{padding:18px}.card h2{margin:0 0 8px;font-size:20px;font-weight:500}.card p{margin:0;color:var(--muted);line-height:1.5;font-weight:400}.steps{margin-top:14px;padding:18px;border-radius:8px;background:var(--soft);border:1px solid var(--line);line-height:1.55}.steps strong{font-weight:600}code{display:inline-block;margin-top:8px;padding:7px 9px;border-radius:8px;background:#fff;border:1px solid var(--line);color:#0d5f8f;font-weight:600}@media(max-width:760px){.grid{grid-template-columns:1fr}.hero{padding:24px}}
     </style>
 </head>
 <body>
@@ -103,37 +13,14 @@
         <section class="hero">
             <div class="label">Proyecto Django</div>
             <h1>Aplicacion Control de Asistencias</h1>
-            <p class="lead">
-                Sistema escolar para administrar alumnos, credenciales QR/NFC,
-                registro de asistencia, calendario por estudiante y escaneo del profesor.
-            </p>
+            <p class="lead">Sistema escolar para administrar alumnos, credenciales QR/NFC, registro de asistencia, calendario por estudiante y escaneo del profesor.</p>
         </section>
-
         <section class="grid">
-            <article class="card">
-                <h2>Panel escolar</h2>
-                <p>Tabla de alumnos con filtros por nombre, grado, grupo y edad.</p>
-            </article>
-            <article class="card">
-                <h2>Escaneo profesor</h2>
-                <p>Vista movil para registrar asistencia con QR, NFC o codigo manual.</p>
-            </article>
-            <article class="card">
-                <h2>Credencial</h2>
-                <p>Plantilla imprimible con datos de emergencia, QR y soporte para NFC.</p>
-            </article>
+            <article class="card"><h2>Panel escolar</h2><p>Tabla de alumnos con filtros por nombre, grado, grupo y edad.</p></article>
+            <article class="card"><h2>Escaneo profesor</h2><p>Vista movil para registrar asistencia con QR, NFC o codigo manual.</p></article>
+            <article class="card"><h2>Credencial</h2><p>Plantilla imprimible con datos de emergencia, QR y soporte para NFC.</p></article>
         </section>
-
-        <section class="steps">
-            <strong>Nota:</strong> GitHub Pages muestra esta pagina estatica, pero no ejecuta Django.
-            Para correr la aplicacion completa:
-            <br>
-            <code>pip install -r requirements.txt</code>
-            <br>
-            <code>python manage.py migrate</code>
-            <br>
-            <code>python manage.py runserver</code>
-        </section>
+        <section class="steps"><strong>Nota:</strong> GitHub Pages muestra esta pagina estatica, pero no ejecuta Django. Para correr la aplicacion completa:<br><code>pip install -r requirements.txt</code><br><code>python manage.py migrate</code><br><code>python manage.py runserver</code></section>
     </main>
 </body>
 </html>
