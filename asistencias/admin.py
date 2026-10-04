@@ -45,17 +45,56 @@ class TutorAdmin(admin.ModelAdmin):
 
 @admin.register(Alumno)
 class AlumnoAdmin(admin.ModelAdmin):
-    list_display = ("matricula", "nombre_completo", "grupo", "activo")
+    list_display = ("matricula", "nombre_completo", "grupo", "tipo_sangre", "activo")
     list_filter = ("grupo__ciclo_escolar", "grupo__grado", "grupo", "activo")
     search_fields = (
         "matricula",
         "nombres",
         "apellido_paterno",
         "apellido_materno",
+        "contacto_emergencia_nombre",
+        "contacto_emergencia_telefono",
         "codigo_qr",
         "codigo_nfc",
     )
     filter_horizontal = ("tutores",)
+    fieldsets = (
+        (
+            "Datos escolares",
+            {
+                "fields": (
+                    "matricula",
+                    "nombres",
+                    "apellido_paterno",
+                    "apellido_materno",
+                    "grupo",
+                    "activo",
+                )
+            },
+        ),
+        (
+            "Familia y emergencia",
+            {
+                "fields": (
+                    "tutores",
+                    "contacto_emergencia_nombre",
+                    "contacto_emergencia_telefono",
+                )
+            },
+        ),
+        (
+            "Credencial",
+            {
+                "fields": (
+                    "fecha_nacimiento",
+                    "tipo_sangre",
+                    "informacion_medica",
+                    "codigo_qr",
+                    "codigo_nfc",
+                )
+            },
+        ),
+    )
 
 
 @admin.register(RegistroAsistencia)

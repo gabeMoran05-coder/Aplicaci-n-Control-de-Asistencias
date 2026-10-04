@@ -95,6 +95,11 @@ class Alumno(TimeStampedModel):
     nombres = models.CharField(max_length=80)
     apellido_paterno = models.CharField(max_length=80)
     apellido_materno = models.CharField(max_length=80, blank=True)
+    fecha_nacimiento = models.DateField(null=True, blank=True)
+    tipo_sangre = models.CharField(max_length=5, blank=True)
+    informacion_medica = models.TextField(blank=True)
+    contacto_emergencia_nombre = models.CharField(max_length=120, blank=True)
+    contacto_emergencia_telefono = models.CharField(max_length=20, blank=True)
     grupo = models.ForeignKey(Grupo, on_delete=models.PROTECT, related_name="alumnos")
     tutores = models.ManyToManyField(Tutor, related_name="alumnos", blank=True)
     codigo_qr = models.CharField(max_length=80, unique=True)
@@ -113,6 +118,21 @@ class Alumno(TimeStampedModel):
     def nombre_completo(self):
         partes = [self.nombres, self.apellido_paterno, self.apellido_materno]
         return " ".join(parte for parte in partes if parte).strip()
+
+    @property
+    def edad(self):
+        if not self.fecha_nacimiento:
+            return None
+        hoy = timezone.localdate()
+        return (
+            hoy.year
+            - self.fecha_nacimiento.year
+            - ((hoy.month, hoy.day) < (self.fecha_nacimiento.month, self.fecha_nacimiento.day))
+        )
+
+    @property
+    def grado_nombre(self):
+        return self.grupo.grado.nombre
 
 
 class RegistroAsistencia(TimeStampedModel):

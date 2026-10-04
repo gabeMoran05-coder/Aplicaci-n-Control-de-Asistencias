@@ -1,10 +1,12 @@
 ﻿import calendar
 import json
+from io import BytesIO
 from datetime import date, datetime, timedelta
 
+from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
 from django.db.models import Q
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
@@ -40,12 +42,48 @@ def kiosco_asistencia(request):
     return render(request, "asistencias/kiosco_asistencia.html")
 
 
+@login_required
+def profesor_escaner(request):
+    return render(request, "asistencias/kiosco_asistencia.html", {"modo_profesor": True})
+
+
 def control_semanal(request):
     grupos = list(
         Grupo.objects.select_related("grado", "ciclo_escolar")
         .filter(activo=True)
         .order_by("grado__orden", "nombre")
     )
+    filtro_grado = request.GET.get("grado") or ""
+    filtro_grupo = request.GET.get("grupo") or ""
+    filtro_edad = request.GET.get("edad") or ""
+    busqueda = (request.GET.get("q") or "").strip()
+
+    alumnos = (
+        Alumno.objects.select_related("grupo", "grupo__grado", "grupo__ciclo_escolar")
+        .filter(activo=True)
+        .order_by("apellido_paterno", "apellido_materno", "nombres")
+    )
+    if filtro_grado:
+        alumnos = alumnos.filter(grupo__grado_id=filtro_grado)
+    if filtro_grupo:
+        alumnos = alumnos.filter(grupo_id=filtro_grupo)
+    if busqueda:
+        alumnos = alumnos.filter(
+            Q(nombres__icontains=busqueda)
+            | Q(apellido_paterno__icontains=busqueda)
+            | Q(apellido_materno__icontains=busqueda)
+            | Q(matricula__icontains=busqueda)
+        )
+
+    alumnos_tabla = list(alumnos)
+    if filtro_edad:
+        try:
+            edad = int(filtro_edad)
+        except ValueError:
+            edad = None
+        if edad is not None:
+            alumnos_tabla = [alumno for alumno in alumnos_tabla if alumno.edad == edad]
+
     alumnos_por_grupo = _alumnos_por_grupo(grupos)
     tablero = []
 
@@ -69,7 +107,23 @@ def control_semanal(request):
         "tablero": tablero,
         "total_alumnos": sum(len(alumnos) for alumnos in alumnos_por_grupo.values()),
         "total_grupos": len(grupos),
+        "asistencias_hoy": RegistroAsistencia.objects.filter(
+            fecha=timezone.localdate(),
+            tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
+        ).count(),
+        "notificaciones_pendientes": NotificacionWhatsApp.objects.filter(
+            estado=NotificacionWhatsApp.Estado.PENDIENTE,
+        ).count(),
         "hoy": timezone.localdate(),
+        "alumnos_tabla": alumnos_tabla,
+        "grupos": grupos,
+        "grados": sorted({grupo.grado for grupo in grupos}, key=lambda grado: grado.orden),
+        "filtros": {
+            "grado": filtro_grado,
+            "grupo": filtro_grupo,
+            "edad": filtro_edad,
+            "q": busqueda,
+        },
     }
     return render(request, "asistencias/control_semanal.html", contexto)
 
@@ -104,6 +158,7 @@ def perfil_alumno(request, alumno_id):
 
     contexto = {
         "alumno": alumno,
+        "tutores": alumno.tutores.filter(activo=True).order_by("parentesco", "nombre"),
         "calendario": calendario,
         "dias_calendario": DIAS_CALENDARIO,
         "mes_inicio": mes_inicio,
@@ -114,6 +169,51 @@ def perfil_alumno(request, alumno_id):
         "hoy": hoy,
     }
     return render(request, "asistencias/perfil_alumno.html", contexto)
+
+
+def alumno_publico(request, codigo):
+    alumno = get_object_or_404(
+        Alumno.objects.select_related("grupo", "grupo__grado", "grupo__ciclo_escolar"),
+        codigo_qr=codigo,
+        activo=True,
+    )
+    return perfil_alumno(request, alumno.id)
+
+
+def credencial_alumno(request, alumno_id):
+    alumno = get_object_or_404(
+        Alumno.objects.select_related("grupo", "grupo__grado", "grupo__ciclo_escolar"),
+        pk=alumno_id,
+        activo=True,
+    )
+    tutores = alumno.tutores.filter(activo=True).order_by("parentesco", "nombre")
+    return render(
+        request,
+        "asistencias/credencial_alumno.html",
+        {"alumno": alumno, "tutores": tutores, "hoy": timezone.localdate()},
+    )
+
+
+def qr_alumno(request, alumno_id):
+    alumno = get_object_or_404(Alumno, pk=alumno_id, activo=True)
+    contenido = request.build_absolute_uri(
+        reverse("asistencias:alumno_publico", args=[alumno.codigo_qr])
+    )
+
+    try:
+        import qrcode
+        from qrcode.image.svg import SvgPathImage
+    except ImportError:
+        return HttpResponse(
+            "Instala la dependencia qrcode para generar imagenes QR.",
+            status=503,
+            content_type="text/plain",
+        )
+
+    imagen = qrcode.make(contenido, image_factory=SvgPathImage, box_size=12)
+    salida = BytesIO()
+    imagen.save(salida)
+    return HttpResponse(salida.getvalue(), content_type="image/svg+xml")
 
 
 @require_POST
@@ -169,7 +269,7 @@ def registrar_asistencia_kiosco(request):
     except json.JSONDecodeError:
         return JsonResponse({"ok": False, "mensaje": "Lectura invalida."}, status=400)
 
-    codigo = (payload.get("codigo") or "").strip()
+    codigo = _normalizar_codigo(payload.get("codigo") or "")
     if not codigo:
         return JsonResponse({"ok": False, "mensaje": "Codigo vacio."}, status=400)
 
@@ -221,10 +321,23 @@ def registrar_asistencia_kiosco(request):
             "mensaje": "Entrada registrada" if creado else "Entrada ya registrada hoy",
             "alumno": alumno.nombre_completo,
             "grupo": str(alumno.grupo),
+            "alumno_id": alumno.id,
             "hora": registro.hora.strftime("%H:%M"),
             "fecha": registro.fecha.strftime("%d/%m/%Y"),
         }
     )
+
+
+def _normalizar_codigo(valor):
+    codigo = valor.strip()
+    if not codigo:
+        return ""
+    partes = codigo.rstrip("/").split("/")
+    if "q" in partes:
+        indice = partes.index("q")
+        if indice + 1 < len(partes):
+            return partes[indice + 1]
+    return codigo
 
 
 def _alumnos_por_grupo(grupos):
