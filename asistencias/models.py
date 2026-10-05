@@ -167,6 +167,13 @@ class RegistroAsistencia(TimeStampedModel):
         null=True,
         blank=True,
     )
+    modificado_por = models.ForeignKey(
+        "auth.User",
+        on_delete=models.PROTECT,
+        related_name="ajustes_asistencia",
+        null=True,
+        blank=True,
+    )
     observaciones = models.TextField(blank=True)
 
     class Meta:

@@ -26,7 +26,14 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-only-secret-key-change-me'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,testserver').split(',')
+ALLOWED_HOSTS = os.environ.get(
+    'DJANGO_ALLOWED_HOSTS',
+    'localhost,127.0.0.1,0.0.0.0,testserver,flagship-hacking-amino.ngrok-free.dev',
+).split(',')
+CSRF_TRUSTED_ORIGINS = [
+    'http://flagship-hacking-amino.ngrok-free.dev',
+    'https://flagship-hacking-amino.ngrok-free.dev',
+]
 
 
 # Application definition
@@ -118,9 +125,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = '/profesor/'
-LOGOUT_REDIRECT_URL = '/'
+LOGIN_URL = 'asistencias:prefecto_login'
+LOGIN_REDIRECT_URL = '/prefectos/'
+LOGOUT_REDIRECT_URL = '/prefectos/ingresar/'
 
 
 # Email

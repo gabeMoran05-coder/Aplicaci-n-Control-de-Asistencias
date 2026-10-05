@@ -15,6 +15,7 @@ env/
 # Local config
 .env
 .env.*
+policy.yaml
 
 # IDE
 .vscode/

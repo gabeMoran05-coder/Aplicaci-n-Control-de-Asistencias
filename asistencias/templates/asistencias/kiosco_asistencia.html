@@ -1,29 +1,177 @@
 ﻿<!doctype html>
+{% load static %}
 <html lang="es-MX">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% if modo_profesor %}Profesor{% else %}Kiosco{% endif %} - AsisteEscolar</title>
+    <title>Prefectura - AsisteEscolar</title>
+    <meta name="theme-color" content="#eaf3f7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Prefectura">
+    <link rel="manifest" href="{% url 'asistencias:prefecto_manifest' %}">
+    <link rel="apple-touch-icon" href="{% static 'asistencias/prefectura-apple-touch-icon.png' %}">
     <style>
         :root{--bg:#07131a;--panel:#0e2530;--line:#21495a;--blue:#1177ad;--ink:#fff;--muted:#9bc9dc;--ok:#d9fbe8;--ok-ink:#087247;--warn:#fff1cc;--warn-ink:#8a5c00;--bad:#ffe2e2;--bad-ink:#a82018}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}.app{min-height:100vh;display:grid;grid-template-rows:auto 1fr auto;padding:18px;gap:16px}.top{display:flex;justify-content:space-between;align-items:center;gap:14px}.brand{font-size:24px;font-weight:900}.brand span{display:block;color:var(--muted);font-size:14px}.clock{text-align:right;font-size:30px;font-weight:900}.clock small{display:block;color:var(--muted);font-size:13px}.scanner{display:grid;place-items:center}.phone{width:min(100%,460px);min-height:660px;border:1px solid var(--line);border-radius:28px;background:#f7f9fc;color:#101828;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.35);position:relative}.hero{padding:18px;background:linear-gradient(#ffd8e2,#ff7e9e);text-align:center}.hero h1{margin:12px 0 4px;font-size:34px;letter-spacing:0}.hero p{margin:0;font-weight:900}.camera-wrap{margin:18px;border-radius:18px;background:#111827;overflow:hidden;aspect-ratio:1;position:relative}video{width:100%;height:100%;object-fit:cover}.target{position:absolute;inset:12%;border:4px solid rgba(255,255,255,.78);border-radius:18px}.panel{padding:0 18px 18px}.status{padding:14px;border:1px solid #dde5ee;border-radius:8px;background:white;font-weight:900}.status span{display:block;color:#667085;font-size:13px;margin-top:4px}.manual{display:flex;gap:8px;margin-top:12px}.manual input{min-width:0;flex:1;border:1px solid #d8dee8;border-radius:8px;padding:13px;font-size:16px}.manual button{border:0;border-radius:8px;background:var(--blue);color:white;font-weight:900;padding:0 14px}.bubble{position:absolute;left:16px;right:16px;bottom:18px;transform:translateY(140%);transition:transform .22s ease;padding:16px;border-radius:18px;box-shadow:0 16px 40px rgba(0,0,0,.24);font-weight:900}.bubble.show{transform:translateY(0)}.bubble.ok{background:var(--ok);color:var(--ok-ink)}.bubble.warn{background:var(--warn);color:var(--warn-ink)}.bubble.bad{background:var(--bad);color:var(--bad-ink)}.bubble strong{display:block;font-size:20px;line-height:1.1}.bubble span{display:block;margin-top:6px}.footer{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-weight:800}.hidden-reader{position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0}@media(max-width:560px){.app{padding:10px}.top{align-items:flex-start}.clock{font-size:24px}.phone{min-height:calc(100vh - 104px);border-radius:22px}.camera-wrap{margin:14px}.hero h1{font-size:30px}}
+        .camera-prompt{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:14px;padding:20px;color:#fff;text-align:center;background:#111827}.camera-prompt[hidden]{display:none}.camera-prompt p{margin:0;max-width:290px;font-size:16px;line-height:1.4;font-weight:400}.camera-prompt button,.camera-control{min-height:44px;padding:10px 16px;border:0;border-radius:6px;background:#1177ad;color:#fff;font-size:15px;font-weight:600;cursor:pointer}.camera-prompt button:disabled{opacity:.7}.camera-controls{display:flex;justify-content:flex-end;margin:0 18px 14px}.camera-control[hidden]{display:none}.camera-wrap #qr-reader{width:100%;height:100%;border:0!important}.camera-wrap #qr-reader video{width:100%!important;height:100%!important;object-fit:cover}.target{pointer-events:none}.status{font-weight:600}.status span{font-weight:400}.hero{padding:14px;background:#eaf3f7}.hero h1{font-size:25px;font-weight:600}.hero p{font-weight:400;font-size:14px}.phone{min-height:0;border-radius:8px;box-shadow:none}.brand,.clock{font-weight:600}.footer{font-weight:400}@media(max-width:560px){.phone{min-height:0;border-radius:8px}.hero h1{font-size:23px}.camera-wrap{aspect-ratio:1;margin:12px}.app{grid-template-rows:auto 1fr auto;gap:10px}.top{gap:8px}.brand{font-size:18px}}
+        .bubble.ok.grade-1,.status.grade-1{border-left:5px solid #e0ad22}.bubble.ok.grade-2,.status.grade-2{border-left:5px solid #ca5656}.bubble.ok.grade-3,.status.grade-3{border-left:5px solid #367db3}.footer form{margin:0}.footer button{border:0;background:none;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}
     </style>
 </head>
 <body>
     <main class="app">
-        <header class="top"><div class="brand">AsisteEscolar <span>{% if modo_profesor %}App del profesor{% else %}Kiosco QR / NFC{% endif %}</span></div><div class="clock" id="clock">--:--<small id="date">--</small></div></header>
-        <section class="scanner"><div class="phone"><div class="hero"><p>Escaneo continuo</p><h1>Asistencia</h1><p>Sin cambiar de pantalla</p></div><div class="camera-wrap"><video id="video" autoplay muted playsinline></video><div class="target"></div></div><div class="panel"><div class="status" id="status">Sistema listo<span>Escanea el QR, acerca NFC o escribe el codigo.</span></div><form class="manual" id="manualForm"><input id="manualInput" autocomplete="off" placeholder="Codigo QR / NFC"><button type="submit">Registrar</button></form></div><div class="bubble" id="bubble"><strong id="bubbleTitle"></strong><span id="bubbleText"></span></div></div></section>
-        <footer class="footer"><span><a style="color:inherit" href="{% url 'asistencias:control' %}">Panel</a></span><span id="cameraState">Iniciando camara...</span></footer>
+        <header class="top"><div class="brand">AsisteEscolar <span>Prefectura · {{ prefecto_nombre }}</span></div><div class="clock" id="clock">--:--<small id="date">--</small></div></header>
+        <section class="scanner"><div class="phone"><div class="hero"><p>Escaneo continuo</p><h1>Asistencia</h1></div><div class="camera-wrap"><div id="qr-reader" aria-label="Vista de la cámara para leer códigos QR"></div><div class="target"></div><div class="camera-prompt" id="cameraPrompt"><p id="cameraHelp">Activa la cámara para escanear las credenciales.</p><button type="button" id="cameraButton">Activar cámara</button></div></div><div class="camera-controls"><button class="camera-control" type="button" id="stopCamera" hidden>Detener cámara</button></div><div class="panel"><div class="status" role="status" aria-live="polite"><strong id="statusTitle">Sistema listo</strong><span id="statusDetail">Escanea el QR, acerca NFC o escribe el código.</span></div><form class="manual" id="manualForm"><input id="manualInput" autocomplete="off" placeholder="Código QR / NFC" aria-label="Código QR o NFC"><button type="submit">Registrar</button></form></div><div class="bubble" id="bubble" role="status" aria-live="polite"><strong id="bubbleTitle"></strong><span id="bubbleText"></span></div></div></section>
+        <footer class="footer"><span id="cameraState">Cámara desactivada</span><a style="color:inherit" href="{% url 'asistencias:reporte_ausencias' %}">Reporte</a><form method="post" action="{% url 'asistencias:prefecto_logout' %}">{% csrf_token %}<button type="submit">Cerrar sesión</button></form></footer>
     </main>
     <input class="hidden-reader" id="readerInput" autocomplete="off" inputmode="none">
-    <script>
-        const video=document.getElementById('video'),state=document.getElementById('cameraState'),statusBox=document.getElementById('status'),bubble=document.getElementById('bubble'),bubbleTitle=document.getElementById('bubbleTitle'),bubbleText=document.getElementById('bubbleText'),manualForm=document.getElementById('manualForm'),manualInput=document.getElementById('manualInput'),readerInput=document.getElementById('readerInput'),clock=document.getElementById('clock'),dateEl=document.getElementById('date');let busy=false,lastCode='',lastAt=0,hideTimer;
-        function cookie(name){const value=`; ${document.cookie}`;const parts=value.split(`; ${name}=`);if(parts.length===2)return parts.pop().split(';').shift()}
-        function tick(){const n=new Date();clock.firstChild.nodeValue=n.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});dateEl.textContent=n.toLocaleDateString('es-MX',{weekday:'long',day:'2-digit',month:'long'})}setInterval(tick,1000);tick();
-        function show(kind,title,text){clearTimeout(hideTimer);bubble.className=`bubble ${kind} show`;bubbleTitle.textContent=title;bubbleText.textContent=text;statusBox.innerHTML=`${title}<span>${text}</span>`;hideTimer=setTimeout(()=>bubble.classList.remove('show'),4200)}
-        async function register(code){code=(code||'').trim();if(!code)return;const now=Date.now();if(busy||(code===lastCode&&now-lastAt<3500))return;busy=true;lastCode=code;lastAt=now;try{const r=await fetch("{% url 'asistencias:registrar_kiosco' %}",{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':cookie('csrftoken')},body:JSON.stringify({codigo:code})});const data=await r.json();if(r.ok&&data.tipo==='registrado')show('ok',`✓ ${data.alumno}`,`Asistio ${data.grupo} a las ${data.hora}. WhatsApp programado.`);else if(r.ok)show('warn',`↺ ${data.alumno}`,`Ya tenia asistencia hoy a las ${data.hora}.`);else show('bad','Credencial no registrada',data.codigo||code)}catch(e){show('bad','Sin conexion','No se pudo registrar la asistencia.')}finally{busy=false;manualInput.value='';readerInput.value='';readerInput.focus({preventScroll:true})}}
-        manualForm.addEventListener('submit',e=>{e.preventDefault();register(manualInput.value)});readerInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();register(readerInput.value)}});document.addEventListener('click',()=>readerInput.focus({preventScroll:true}));
-        async function startCamera(){if(!('BarcodeDetector' in window)){state.textContent='Camara sin detector QR; usa lector o codigo manual.';return}try{const detector=new BarcodeDetector({formats:['qr_code']});const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});video.srcObject=stream;state.textContent='Camara lista';async function scan(){if(video.readyState>=2){const codes=await detector.detect(video).catch(()=>[]);if(codes.length)register(codes[0].rawValue)}requestAnimationFrame(scan)}scan()}catch(e){state.textContent='Permiso de camara pendiente o no disponible.'}}
-        startCamera();readerInput.focus({preventScroll:true});
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+    <script defer>
+        const state = document.getElementById('cameraState');
+        const cameraPrompt = document.getElementById('cameraPrompt');
+        const cameraHelp = document.getElementById('cameraHelp');
+        const cameraButton = document.getElementById('cameraButton');
+        const stopCameraButton = document.getElementById('stopCamera');
+        const statusBox = document.querySelector('.status');
+        const statusTitle = document.getElementById('statusTitle');
+        const statusDetail = document.getElementById('statusDetail');
+        const bubble = document.getElementById('bubble');
+        const bubbleTitle = document.getElementById('bubbleTitle');
+        const bubbleText = document.getElementById('bubbleText');
+        const manualForm = document.getElementById('manualForm');
+        const manualInput = document.getElementById('manualInput');
+        const readerInput = document.getElementById('readerInput');
+        const clock = document.getElementById('clock');
+        const dateEl = document.getElementById('date');
+        let scanner;
+        let cameraActive = false;
+        let busy = false;
+        let lastCode = '';
+        let lastAt = 0;
+        let hideTimer;
+
+        function cookie(name) {
+            const parts = (`; ${document.cookie}`).split(`; ${name}=`);
+            return parts.length === 2 ? parts.pop().split(';').shift() : '';
+        }
+
+        function tick() {
+            const now = new Date();
+            clock.firstChild.nodeValue = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            dateEl.textContent = now.toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long' });
+        }
+        setInterval(tick, 1000);
+        tick();
+
+        function show(kind, title, detail, grade) {
+            clearTimeout(hideTimer);
+            const gradeClass = [1, 2, 3].includes(Number(grade)) ? `grade-${grade}` : '';
+            bubble.className = `bubble ${kind} ${gradeClass} show`;
+            statusBox.className = `status ${gradeClass}`;
+            bubbleTitle.textContent = title;
+            bubbleText.textContent = detail;
+            statusTitle.textContent = title;
+            statusDetail.textContent = detail;
+            hideTimer = setTimeout(() => bubble.classList.remove('show'), 4200);
+        }
+
+        async function register(code) {
+            code = (code || '').trim();
+            if (!code) return;
+            const now = Date.now();
+            if (busy || (code === lastCode && now - lastAt < 6000)) return;
+            busy = true;
+            lastCode = code;
+            lastAt = now;
+            try {
+                const response = await fetch("{% url 'asistencias:registrar_prefecto' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': cookie('csrftoken') },
+                    body: JSON.stringify({ codigo: code }),
+                });
+                if (response.redirected) {
+                    window.location.assign(response.url);
+                    return;
+                }
+                const data = await response.json();
+                if (response.ok && data.tipo === 'registrado') {
+                    show('ok', `${data.alumno} asistió`, `${data.grupo} a las ${data.hora} · ${data.prefecto}`, data.grado_orden);
+                } else if (response.ok) {
+                    show('warn', `${data.alumno} ya registrado`, `Asistencia de hoy a las ${data.hora}`, data.grado_orden);
+                } else {
+                    show('bad', 'No se registró la asistencia', data.mensaje || 'Código no reconocido');
+                }
+            } catch (error) {
+                show('bad', 'No se pudo registrar', 'Revisa la conexión e inténtalo de nuevo.');
+            } finally {
+                busy = false;
+                manualInput.value = '';
+                readerInput.value = '';
+            }
+        }
+
+        function cameraError(error) {
+            const reason = String(error && (error.name || error.message || error));
+            if (/NotAllowed|Permission|denied|allowed/i.test(reason)) return 'Permiso denegado. Autoriza la cámara para este sitio en el navegador.';
+            if (/NotFound|DevicesNotFound|Overconstrained/i.test(reason)) return 'No se encontró una cámara disponible.';
+            if (/NotReadable|TrackStart/i.test(reason)) return 'La cámara está ocupada por otra aplicación.';
+            return 'No se pudo iniciar la cámara. Inténtalo de nuevo.';
+        }
+
+        async function startCamera() {
+            if (cameraActive || cameraButton.disabled) return;
+            if (!window.isSecureContext || !navigator.mediaDevices) {
+                cameraHelp.textContent = 'Abre esta página por HTTPS para usar la cámara.';
+                return;
+            }
+            if (!window.Html5Qrcode) {
+                cameraHelp.textContent = 'No se cargó el lector QR. Revisa la conexión y recarga la página.';
+                return;
+            }
+            cameraButton.disabled = true;
+            cameraHelp.textContent = 'Solicitando permiso de cámara...';
+            try {
+                if (!scanner) scanner = new Html5Qrcode('qr-reader', {
+                    formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+                });
+                await scanner.start({ facingMode: 'environment' }, { fps: 10 }, register);
+                cameraActive = true;
+                cameraPrompt.hidden = true;
+                stopCameraButton.hidden = false;
+                state.textContent = 'Cámara activa';
+            } catch (error) {
+                cameraHelp.textContent = cameraError(error);
+                state.textContent = 'Cámara no disponible';
+                cameraButton.textContent = 'Reintentar cámara';
+            } finally {
+                cameraButton.disabled = false;
+            }
+        }
+
+        async function stopCamera() {
+            if (!cameraActive) return;
+            stopCameraButton.disabled = true;
+            try {
+                await scanner.stop();
+                cameraActive = false;
+                cameraPrompt.hidden = false;
+                stopCameraButton.hidden = true;
+                cameraButton.textContent = 'Activar cámara';
+                cameraHelp.textContent = 'Activa la cámara para escanear las credenciales.';
+                state.textContent = 'Cámara desactivada';
+            } catch (error) {
+                state.textContent = 'No se pudo detener la cámara.';
+            } finally {
+                stopCameraButton.disabled = false;
+            }
+        }
+
+        cameraButton.addEventListener('click', startCamera);
+        stopCameraButton.addEventListener('click', stopCamera);
+        manualForm.addEventListener('submit', event => { event.preventDefault(); register(manualInput.value); });
+        readerInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') { event.preventDefault(); register(readerInput.value); }
+        });
+        if (matchMedia('(pointer: fine)').matches) readerInput.focus({ preventScroll: true });
     </script>
 </body>
 </html>

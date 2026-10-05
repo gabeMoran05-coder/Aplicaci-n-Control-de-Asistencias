@@ -1,16 +1,21 @@
 ﻿import calendar
 import json
+from functools import wraps
 from io import BytesIO
 from datetime import date, datetime, timedelta
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
+from django.contrib.staticfiles.storage import staticfiles_storage
+from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError
 from django.db.models import Q
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_GET, require_POST
 
 from .models import Alumno, Grupo, NotificacionWhatsApp, RegistroAsistencia
 
@@ -21,6 +26,7 @@ GRADOS_CONTROL = [
     {"orden": 3, "nombre": "3ro"},
 ]
 GRUPOS_CONTROL = ["A", "B", "C", "D"]
+PREFECTOS_GROUP = "Prefectos"
 MESES = [
     "enero",
     "febrero",
@@ -38,19 +44,92 @@ MESES = [
 DIAS_CALENDARIO = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]
 
 
-def kiosco_asistencia(request):
-    return render(request, "asistencias/kiosco_asistencia.html")
+def es_prefecto(user):
+    return user.is_authenticated and user.groups.filter(name=PREFECTOS_GROUP).exists()
 
 
-@login_required
+def prefecto_required(view):
+    @login_required(login_url="asistencias:prefecto_login")
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        if not es_prefecto(request.user):
+            raise PermissionDenied("Esta cuenta no tiene acceso a Prefectura.")
+        return view(request, *args, **kwargs)
+
+    return wrapped
+
+
+def reporte_required(view):
+    @login_required(login_url="asistencias:prefecto_login")
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        if not (request.user.is_staff or es_prefecto(request.user)):
+            raise PermissionDenied("Esta cuenta no tiene acceso a reportes escolares.")
+        return view(request, *args, **kwargs)
+
+    return wrapped
+
+
+class PrefectoLoginView(LoginView):
+    template_name = "registration/login.html"
+    next_page = "/prefectos/"
+
+    def form_valid(self, form):
+        if not es_prefecto(form.get_user()):
+            form.add_error(None, "Esta cuenta no tiene acceso a Prefectura.")
+            return self.form_invalid(form)
+        return super().form_valid(form)
+
+
+@require_GET
+def prefecto_manifest(request):
+    return JsonResponse(
+        {
+            "name": "AsisteEscolar Prefectura",
+            "short_name": "Prefectura",
+            "start_url": reverse("asistencias:prefectos"),
+            "scope": "/prefectos/",
+            "display": "standalone",
+            "background_color": "#f7f9fc",
+            "theme_color": "#1177ad",
+            "icons": [
+                {
+                    "src": staticfiles_storage.url("asistencias/prefectura-icon.png"),
+                    "sizes": "192x192",
+                    "type": "image/png",
+                    "purpose": "any maskable",
+                },
+                {
+                    "src": staticfiles_storage.url("asistencias/prefectura-icon-512.png"),
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "any maskable",
+                },
+            ],
+        },
+        content_type="application/manifest+json",
+    )
+
+
+@prefecto_required
+@ensure_csrf_cookie
 def profesor_escaner(request):
-    return render(request, "asistencias/kiosco_asistencia.html", {"modo_profesor": True})
+    return render(
+        request,
+        "asistencias/kiosco_asistencia.html",
+        {"prefecto_nombre": request.user.get_full_name() or request.user.username},
+    )
 
 
 def control_semanal(request):
+    ordenes_grado = [grado["orden"] for grado in GRADOS_CONTROL]
+    hoy = timezone.localdate()
     grupos = list(
         Grupo.objects.select_related("grado", "ciclo_escolar")
-        .filter(activo=True)
+        .filter(
+            activo=True, grado__orden__in=ordenes_grado, nombre__in=GRUPOS_CONTROL,
+            ciclo_escolar__fecha_inicio__lte=hoy, ciclo_escolar__fecha_fin__gte=hoy,
+        )
         .order_by("grado__orden", "nombre")
     )
     filtro_grado = request.GET.get("grado") or ""
@@ -60,13 +139,19 @@ def control_semanal(request):
 
     alumnos = (
         Alumno.objects.select_related("grupo", "grupo__grado", "grupo__ciclo_escolar")
-        .filter(activo=True)
+        .filter(
+            activo=True,
+            grupo__grado__orden__in=ordenes_grado,
+            grupo__nombre__in=GRUPOS_CONTROL,
+            grupo__ciclo_escolar__fecha_inicio__lte=hoy,
+            grupo__ciclo_escolar__fecha_fin__gte=hoy,
+        )
         .order_by("apellido_paterno", "apellido_materno", "nombres")
     )
     if filtro_grado:
         alumnos = alumnos.filter(grupo__grado_id=filtro_grado)
     if filtro_grupo:
-        alumnos = alumnos.filter(grupo_id=filtro_grupo)
+        alumnos = alumnos.filter(grupo__nombre=filtro_grupo)
     if busqueda:
         alumnos = alumnos.filter(
             Q(nombres__icontains=busqueda)
@@ -106,10 +191,14 @@ def control_semanal(request):
     contexto = {
         "tablero": tablero,
         "total_alumnos": sum(len(alumnos) for alumnos in alumnos_por_grupo.values()),
-        "total_grupos": len(grupos),
+        "total_grupos": len({(grupo.grado.orden, grupo.nombre) for grupo in grupos}),
         "asistencias_hoy": RegistroAsistencia.objects.filter(
             fecha=timezone.localdate(),
             tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
+            alumno__grupo__grado__orden__in=ordenes_grado,
+            alumno__grupo__nombre__in=GRUPOS_CONTROL,
+            alumno__grupo__ciclo_escolar__fecha_inicio__lte=hoy,
+            alumno__grupo__ciclo_escolar__fecha_fin__gte=hoy,
         ).count(),
         "notificaciones_pendientes": NotificacionWhatsApp.objects.filter(
             estado=NotificacionWhatsApp.Estado.PENDIENTE,
@@ -117,6 +206,7 @@ def control_semanal(request):
         "hoy": timezone.localdate(),
         "alumnos_tabla": alumnos_tabla,
         "grupos": grupos,
+        "letras_grupo": GRUPOS_CONTROL,
         "grados": sorted({grupo.grado for grupo in grupos}, key=lambda grado: grado.orden),
         "filtros": {
             "grado": filtro_grado,
@@ -124,8 +214,89 @@ def control_semanal(request):
             "edad": filtro_edad,
             "q": busqueda,
         },
+        "can_view_reports": request.user.is_authenticated
+        and (request.user.is_staff or es_prefecto(request.user)),
     }
     return render(request, "asistencias/control_semanal.html", contexto)
+
+
+@reporte_required
+@require_GET
+def reporte_ausencias(request):
+    fecha_texto = request.GET.get("fecha") or timezone.localdate().isoformat()
+    try:
+        fecha = date.fromisoformat(fecha_texto)
+    except ValueError:
+        return HttpResponse("Fecha inválida. Usa el formato AAAA-MM-DD.", status=400)
+    if fecha > timezone.localdate():
+        return HttpResponse("No se pueden consultar fechas futuras.", status=400)
+
+    grupos = list(
+        Grupo.objects.select_related("grado", "ciclo_escolar")
+        .filter(
+            activo=True,
+            grado__orden__in=[1, 2, 3],
+            nombre__in=GRUPOS_CONTROL,
+            ciclo_escolar__fecha_inicio__lte=fecha,
+            ciclo_escolar__fecha_fin__gte=fecha,
+        )
+        .order_by("grado__orden", "nombre")
+    )
+    grado_filtro = request.GET.get("grado") or ""
+    grupo_filtro = request.GET.get("grupo") or ""
+    if grado_filtro in {"1", "2", "3"}:
+        grupos = [grupo for grupo in grupos if grupo.grado.orden == int(grado_filtro)]
+    if grupo_filtro in GRUPOS_CONTROL:
+        grupos = [grupo for grupo in grupos if grupo.nombre == grupo_filtro]
+
+    alumnos_por_grupo = _alumnos_por_grupo(grupos)
+    registros = RegistroAsistencia.objects.filter(
+        alumno__grupo__in=grupos,
+        alumno__activo=True,
+        fecha=fecha,
+        tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
+    )
+    registros_por_alumno = {registro.alumno_id: registro for registro in registros}
+    totales = {"alumnos": 0, "presentes": 0, "retardos": 0, "justificados": 0,
+               "faltas": 0, "sin_registro": 0}
+    secciones = []
+    for grupo in grupos:
+        alumnos = alumnos_por_grupo.get(grupo.id, [])
+        seccion = {"grupo": grupo, "total": len(alumnos), "presentes": 0,
+                   "retardos": 0, "justificados": 0, "faltas": [], "sin_registro": []}
+        totales["alumnos"] += len(alumnos)
+        for alumno in alumnos:
+            registro = registros_por_alumno.get(alumno.id)
+            if registro is None:
+                seccion["sin_registro"].append(alumno)
+                totales["sin_registro"] += 1
+            elif registro.estado == RegistroAsistencia.Estado.AUSENTE:
+                seccion["faltas"].append(alumno)
+                totales["faltas"] += 1
+            elif registro.estado == RegistroAsistencia.Estado.RETARDO:
+                seccion["retardos"] += 1
+                totales["retardos"] += 1
+            elif registro.estado == RegistroAsistencia.Estado.JUSTIFICADO:
+                seccion["justificados"] += 1
+                totales["justificados"] += 1
+            else:
+                seccion["presentes"] += 1
+                totales["presentes"] += 1
+        secciones.append(seccion)
+
+    return render(request, "asistencias/reporte_ausencias.html", {
+        "fecha": fecha,
+        "hoy": timezone.localdate(),
+        "es_fin_semana": fecha.weekday() >= 5,
+        "grado_filtro": grado_filtro,
+        "grupo_filtro": grupo_filtro,
+        "grados": GRADOS_CONTROL,
+        "letras_grupo": GRUPOS_CONTROL,
+        "secciones": secciones,
+        "totales": totales,
+        "generado_por": request.user.get_full_name() or request.user.username,
+        "generado_en": timezone.localtime(),
+    })
 
 
 def perfil_alumno(request, alumno_id):
@@ -139,11 +310,13 @@ def perfil_alumno(request, alumno_id):
     mes_fin = _ultimo_dia_mes(mes_inicio)
     calendario = _calendario_alumno(alumno, mes_inicio, mes_fin, hoy)
 
-    registros_mes = RegistroAsistencia.objects.filter(
+    registros_mes = RegistroAsistencia.objects.select_related(
+        "registrado_por", "modificado_por"
+    ).filter(
         alumno=alumno,
         tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
         fecha__range=(mes_inicio, mes_fin),
-    )
+    ).order_by("fecha")
     resumen = {"presentes": 0, "retardos": 0, "justificados": 0, "ausentes": 0}
     for registro in registros_mes:
         estado = _estado_visual(registro.estado)
@@ -158,6 +331,7 @@ def perfil_alumno(request, alumno_id):
 
     contexto = {
         "alumno": alumno,
+        "can_manage_attendance": es_prefecto(request.user),
         "tutores": alumno.tutores.filter(activo=True).order_by("parentesco", "nombre"),
         "calendario": calendario,
         "dias_calendario": DIAS_CALENDARIO,
@@ -166,6 +340,7 @@ def perfil_alumno(request, alumno_id):
         "mes_anterior": _sumar_meses(mes_inicio, -1),
         "mes_siguiente": _sumar_meses(mes_inicio, 1),
         "resumen": resumen,
+        "detalles_mes": registros_mes,
         "hoy": hoy,
     }
     return render(request, "asistencias/perfil_alumno.html", contexto)
@@ -217,6 +392,7 @@ def qr_alumno(request, alumno_id):
 
 
 @require_POST
+@prefecto_required
 def marcar_asistencia_manual(request):
     alumno = get_object_or_404(Alumno, pk=request.POST.get("alumno_id"), activo=True)
     fecha = datetime.strptime(request.POST.get("fecha"), "%Y-%m-%d").date()
@@ -231,17 +407,22 @@ def marcar_asistencia_manual(request):
     if estado not in estados_permitidos:
         estado = RegistroAsistencia.Estado.A_TIEMPO
 
-    registro, creado = RegistroAsistencia.objects.update_or_create(
+    registro, creado = RegistroAsistencia.objects.get_or_create(
         alumno=alumno,
         fecha=fecha,
         tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
         defaults={
             "hora": timezone.localtime(),
             "estado": estado,
-            "registrado_por": request.user if request.user.is_authenticated else None,
+            "registrado_por": request.user,
             "observaciones": "Registro manual desde perfil de alumno.",
         },
     )
+    if not creado:
+        registro.estado = estado
+        registro.modificado_por = request.user
+        registro.observaciones = "Asistencia ajustada manualmente."
+        registro.save(update_fields=["estado", "modificado_por", "observaciones", "actualizado_en"])
 
     if creado and estado != RegistroAsistencia.Estado.AUSENTE:
         _crear_notificaciones_whatsapp(registro)
@@ -250,6 +431,7 @@ def marcar_asistencia_manual(request):
 
 
 @require_POST
+@prefecto_required
 def limpiar_asistencia_manual(request):
     alumno = get_object_or_404(Alumno, pk=request.POST.get("alumno_id"), activo=True)
     fecha = datetime.strptime(request.POST.get("fecha"), "%Y-%m-%d").date()
@@ -263,7 +445,8 @@ def limpiar_asistencia_manual(request):
 
 
 @require_POST
-def registrar_asistencia_kiosco(request):
+@prefecto_required
+def registrar_asistencia_prefecto(request):
     try:
         payload = json.loads(request.body.decode("utf-8"))
     except json.JSONDecodeError:
@@ -300,7 +483,8 @@ def registrar_asistencia_kiosco(request):
             defaults={
                 "hora": ahora,
                 "estado": RegistroAsistencia.Estado.A_TIEMPO,
-                "observaciones": "Registro automatico desde kiosco.",
+                "registrado_por": request.user,
+                "observaciones": "Escaneo de credencial por prefectura.",
             },
         )
     except IntegrityError:
@@ -324,6 +508,11 @@ def registrar_asistencia_kiosco(request):
             "alumno_id": alumno.id,
             "hora": registro.hora.strftime("%H:%M"),
             "fecha": registro.fecha.strftime("%d/%m/%Y"),
+            "grado_orden": alumno.grupo.grado.orden,
+            "prefecto": (
+                registro.registrado_por.get_full_name() or registro.registrado_por.username
+                if registro.registrado_por else "No consta"
+            ),
         }
     )
 
@@ -383,7 +572,9 @@ def _sumar_meses(mes_inicio, cantidad):
 
 
 def _calendario_alumno(alumno, mes_inicio, mes_fin, hoy):
-    registros = RegistroAsistencia.objects.filter(
+    registros = RegistroAsistencia.objects.select_related(
+        "registrado_por", "modificado_por"
+    ).filter(
         alumno=alumno,
         tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
         fecha__range=(mes_inicio, mes_fin),
@@ -428,6 +619,15 @@ def _crear_dia_calendario(alumno, dia, registro, hoy, fuera_mes):
         "estado": estado,
         "etiqueta": etiqueta,
         "hora": hora,
+        "tiene_registro": registro is not None,
+        "responsable": (
+            registro.registrado_por.get_full_name() or registro.registrado_por.username
+            if registro and registro.registrado_por else "No consta"
+        ),
+        "ajustado_por": (
+            registro.modificado_por.get_full_name() or registro.modificado_por.username
+            if registro and registro.modificado_por else ""
+        ),
         "editable": dia <= hoy,
     }
 

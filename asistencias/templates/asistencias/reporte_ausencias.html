@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Reporte de ausencias - {{ fecha|date:'d/m/Y' }}</title>
+    <style>
+        :root{--ink:#202b35;--muted:#5d6a76;--line:#d7dfe6;--blue:#1177ad;--page:#f5f7f9;--yellow:#e3b73c;--red:#cf6464;--grade-blue:#5898c8}
+        *{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:15px Arial,Helvetica,sans-serif}a{color:var(--blue)}button,input,select{font:inherit}.wrap{width:min(1100px,calc(100% - 28px));margin:24px auto 48px}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.top h1{margin:0;font-size:27px;font-weight:600}.sub{margin:7px 0 0;color:var(--muted)}.actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.button{border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);text-decoration:none;min-height:40px;padding:9px 13px;cursor:pointer}.button.primary{background:var(--blue);border-color:var(--blue);color:#fff}.filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:22px 0 16px;padding:16px;background:#fff;border:1px solid var(--line);border-radius:6px}.field{display:grid;gap:5px;min-width:140px}.field label{font-size:12px;color:var(--muted)}.field input,.field select{height:40px;border:1px solid var(--line);border-radius:5px;background:#fff;padding:0 10px;color:var(--ink)}.summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:12px}.metric{background:#fff;border:1px solid var(--line);border-radius:6px;padding:11px 13px}.metric span{display:block;color:var(--muted);font-size:12px}.metric strong{display:block;margin-top:5px;font-size:20px;font-weight:600}.note{margin:0 0 20px;padding:10px 12px;border-left:3px solid var(--yellow);background:#fff;color:var(--muted);line-height:1.4}.group{margin:0 0 16px;background:#fff;border:1px solid var(--line);border-radius:6px;overflow:hidden}.group-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 15px;border-bottom:1px solid var(--line)}.group h2{margin:0;font-size:17px;font-weight:600}.group-head small{display:block;color:var(--muted);margin-top:4px}.grade-1{border-left:4px solid var(--yellow)}.grade-2{border-left:4px solid var(--red)}.grade-3{border-left:4px solid var(--grade-blue)}.counts{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:13px}.counts strong{color:var(--ink)}.list-title{margin:0;padding:10px 15px;background:#f8fafb;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}.list-title.absent{color:#973c3c}.list-title.pending{color:#70590f}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 15px;border-bottom:1px solid var(--line)}th{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase}tr:last-child td{border-bottom:0}td:last-child{width:150px;color:var(--muted)}.empty{padding:12px 15px;color:var(--muted)}.foot{margin-top:20px;color:var(--muted);font-size:12px}.no-groups{padding:18px;background:#fff;border:1px solid var(--line);border-radius:6px;color:var(--muted)}
+        @media(max-width:700px){.top{display:block}.actions{margin-top:14px}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.counts{gap:5px 12px}.group-head{align-items:flex-start;flex-direction:column}.filters .field{flex:1 1 130px}}
+        @media print{@page{size:A4;margin:13mm}body{background:#fff;font-size:11px}.wrap{width:auto;margin:0}.actions,.filters{display:none}.top{margin-bottom:14px}.top h1{font-size:22px}.summary{gap:5px}.metric{break-inside:avoid;padding:7px}.metric strong{font-size:15px}.note{margin-bottom:12px}.group{break-inside:avoid;box-shadow:none;margin-bottom:10px}.group-head,.list-title,th,td{padding-top:6px;padding-bottom:6px}.foot{margin-top:12px}}
+    </style>
+</head>
+<body>
+<main class="wrap">
+    <header class="top">
+        <div><h1>Reporte de ausencias</h1><p class="sub">{{ fecha|date:'d/m/Y' }} · Ciclo escolar correspondiente a la fecha</p></div>
+        <div class="actions"><a class="button" href="{% url 'asistencias:control' %}">Alumnos</a><button class="button primary" type="button" onclick="window.print()">Imprimir / Guardar PDF</button></div>
+    </header>
+    <form class="filters" method="get">
+        <div class="field"><label for="fecha">Fecha</label><input id="fecha" name="fecha" type="date" value="{{ fecha|date:'Y-m-d' }}" max="{{ hoy|date:'Y-m-d' }}" required></div>
+        <div class="field"><label for="grado">Grado</label><select id="grado" name="grado"><option value="">Todos</option>{% for grado in grados %}<option value="{{ grado.orden }}" {% if grado_filtro == grado.orden|stringformat:'s' %}selected{% endif %}>{{ grado.nombre }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="grupo">Grupo</label><select id="grupo" name="grupo"><option value="">Todos</option>{% for letra in letras_grupo %}<option value="{{ letra }}" {% if grupo_filtro == letra %}selected{% endif %}>{{ letra }}</option>{% endfor %}</select></div>
+        <button class="button primary" type="submit">Consultar</button>
+    </form>
+    <section class="summary" aria-label="Resumen general">
+        <div class="metric"><span>Alumnos</span><strong>{{ totales.alumnos }}</strong></div>
+        <div class="metric"><span>Asistieron</span><strong>{{ totales.presentes }}</strong></div>
+        <div class="metric"><span>Retardos</span><strong>{{ totales.retardos }}</strong></div>
+        <div class="metric"><span>Faltas registradas</span><strong>{{ totales.faltas }}</strong></div>
+        <div class="metric"><span>Sin registro</span><strong>{{ totales.sin_registro }}</strong></div>
+    </section>
+    <p class="note">“Sin registro” significa que aún no hay entrada ni falta capturada para esa fecha. No se considera una falta confirmada.{% if es_fin_semana %} La fecha seleccionada cae en fin de semana; comprueba si hubo actividades escolares.{% endif %} Justificados: {{ totales.justificados }}.</p>
+    {% for seccion in secciones %}
+    <section class="group grade-{{ seccion.grupo.grado.orden }}">
+        <header class="group-head"><div><h2>{{ seccion.grupo.grado.nombre }} {{ seccion.grupo.nombre }}</h2><small>{{ seccion.grupo.ciclo_escolar.nombre }} · {{ seccion.total }} alumnos</small></div><div class="counts"><span>Asistieron <strong>{{ seccion.presentes }}</strong></span><span>Retardos <strong>{{ seccion.retardos }}</strong></span><span>Justificados <strong>{{ seccion.justificados }}</strong></span><span>Faltas <strong>{{ seccion.faltas|length }}</strong></span><span>Sin registro <strong>{{ seccion.sin_registro|length }}</strong></span></div></header>
+        {% if seccion.faltas %}<h3 class="list-title absent">Faltas registradas</h3><div class="table-wrap"><table><thead><tr><th>Alumno</th><th>Matrícula</th></tr></thead><tbody>{% for alumno in seccion.faltas %}<tr><td>{{ alumno.apellido_paterno }} {{ alumno.apellido_materno }} {{ alumno.nombres }}</td><td>{{ alumno.matricula }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+        {% if seccion.sin_registro %}<h3 class="list-title pending">Sin registro de asistencia</h3><div class="table-wrap"><table><thead><tr><th>Alumno</th><th>Matrícula</th></tr></thead><tbody>{% for alumno in seccion.sin_registro %}<tr><td>{{ alumno.apellido_paterno }} {{ alumno.apellido_materno }} {{ alumno.nombres }}</td><td>{{ alumno.matricula }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+        {% if not seccion.faltas and not seccion.sin_registro %}<div class="empty">Sin faltas ni registros pendientes.</div>{% endif %}
+    </section>
+    {% empty %}<p class="no-groups">No hay grupos activos para la fecha y los filtros seleccionados.</p>{% endfor %}
+    <footer class="foot">Generado por {{ generado_por }} · {{ generado_en|date:'d/m/Y H:i' }}. Documento de uso interno escolar.</footer>
+</main>
+</body>
+</html>
