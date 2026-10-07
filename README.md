@@ -8,7 +8,8 @@ Sistema web para registrar asistencias escolares por alumno, grado y grupo.
 - Registro de alumnos con matricula, grupo, tutores, codigo QR y codigo NFC.
 - Registro de entrada y salida por fecha y hora.
 - Estado de asistencia: a tiempo, retardo, justificado o manual.
-- Pantalla kiosco para pared con lectura automatica NFC / QR.`r`n- Panel semanal de lunes a viernes por grupo, con colores para asistencia, retardo, justificado y ausencia.
+- Escaner de prefectura para registrar asistencia por QR o lector NFC.
+- Calendario por alumno con colores para asistencia, retardo, justificado y ausencia.
 - Cola de notificaciones de WhatsApp para avisar a los tutores cuando se registre una asistencia.
 - Panel administrativo de Django para gestionar los datos iniciales.
 
@@ -30,13 +31,14 @@ http://127.0.0.1:8000/admin/
 
 ## Panel de control
 
-El panel para directivos o prefectos esta en:
+El directorio y los reportes son privados para la cuenta del grupo `Direccion`:
 
-`	ext
+```text
 http://127.0.0.1:8000/control/
-` 
+```
 
 Muestra alumnos por grado y grupo. Al entrar al perfil de un alumno se ve su calendario mensual con colores para presente, retardo, justificado y ausente.
+La sesion se cierra con el boton `Salir`. Los prefectos usan una cuenta distinta en `/prefectos/`; no pueden abrir el directorio. La consulta individual por QR solo muestra asistencia, sin datos medicos ni telefonos.
 
 ## Prefectura
 
@@ -54,7 +56,7 @@ Los grados se distinguen por color: primero amarillo, segundo rojo y tercero azu
 
 ## Reporte de ausencias
 
-Las cuentas de Prefectura y administracion pueden abrir `/control/ausencias/`, elegir fecha, grado y grupo, e imprimir o guardar el reporte como PDF desde el navegador. El documento muestra cantidades y nombres por salon. Las faltas capturadas se separan de los alumnos sin registro; estos ultimos requieren verificacion y no se cuentan como faltas confirmadas.
+La cuenta de Direccion puede abrir `/control/ausencias/`, elegir fecha, grado y grupo, e imprimir o guardar el reporte como PDF desde el navegador. El documento muestra cantidades y nombres por salon. Las faltas capturadas se separan de los alumnos sin registro; estos ultimos requieren verificacion y no se cuentan como faltas confirmadas.
 
 ## Importar lista escolar
 
@@ -76,9 +78,46 @@ Y configura `DJANGO_ALLOWED_HOSTS` con la IP local de la computadora que corre e
 
 ## Siguiente etapa
 
-- Generar QR por alumno automaticamente.
 - Crear pantalla para emitir/asociar credenciales NFC.
-- Crear dashboard diario por grado y grupo.
 - Integrar WhatsApp Business Cloud API.
+
+## Despliegue en Render
+
+Usa un **Web Service** de Python 3 conectado a la rama `main`. Deja vacio Root Directory.
+
+| Campo | Valor |
+| --- | --- |
+| Build Command | `bash render-build.sh` |
+| Start Command | `bash render-start.sh` |
+| Health Check Path | `/control/ingresar/` |
+
+Crea antes una base **Render Postgres** en la misma region y configura estas variables
+en el Web Service (nunca en GitHub):
+
+| Variable | Valor |
+| --- | --- |
+| `DATABASE_URL` | URL interna de la base Postgres |
+| `DJANGO_SECRET_KEY` | Clave aleatoria larga, generada en Render |
+| `DJANGO_BOOTSTRAP_USERNAME` | Usuario inicial de Direccion |
+| `DJANGO_BOOTSTRAP_PASSWORD` | Contrasena inicial de al menos 12 caracteres |
+
+El comando de arranque aplica migraciones, crea los 12 grupos y la primera cuenta
+de Direccion. Solo crea esa cuenta una vez; no restablece su contrasena en despliegues
+posteriores. Despues del primer acceso se pueden retirar las dos variables
+`DJANGO_BOOTSTRAP_*`.
+
+La base SQLite, las listas de alumnos, las fotos y los CSV de credenciales locales
+**no se suben a GitHub**. La base nueva en Render estara vacia hasta importar los
+alumnos de forma privada. No subas la base de datos ni PDFs con datos de menores al
+repositorio. Render Free pierde las fotos guardadas en el disco local al reiniciar
+o redesplegar; para usarlas con datos reales configura almacenamiento persistente
+(por ejemplo, un disco de pago montado en `/var/data` con
+`DJANGO_MEDIA_ROOT=/var/data/media`) o almacenamiento privado externo. La base
+Postgres gratuita de Render tiene caducidad; revisa el plan antes de usarla en la
+escuela.
+
+Si Auto-Deploy esta activado en Render, cada `git push` a `main` construye y
+despliega la nueva version. Antes de publicar cambios de modelos, crea y prueba
+las migraciones localmente.
 
 

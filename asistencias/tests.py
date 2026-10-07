@@ -1,15 +1,49 @@
 import json
-from datetime import timedelta
+import os
+import tempfile
+from datetime import date, timedelta
+from io import BytesIO
+from unittest.mock import patch
 
 from django.contrib.auth.models import Group, User
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import TestCase
+from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
-from .models import Alumno, CicloEscolar, Grado, Grupo, RegistroAsistencia
+from .cuentas import emitir_acceso
+from .management.commands.importar_lista_asistencia import separar_nombre
+from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grado, Grupo, RegistroAsistencia, Tutor
 
 
 class PrefecturaTests(TestCase):
+    def test_bootstrap_direccion_crea_acceso_solo_una_vez(self):
+        with patch.dict(os.environ, {
+            "DJANGO_BOOTSTRAP_USERNAME": "director-inicial",
+            "DJANGO_BOOTSTRAP_PASSWORD": "ContrasenaTemporalSegura123",
+        }):
+            call_command("bootstrap_direccion", verbosity=0)
+            call_command("bootstrap_direccion", verbosity=0)
+        usuario = User.objects.get(username="director-inicial")
+        self.assertTrue(usuario.check_password("ContrasenaTemporalSegura123"))
+        self.assertTrue(usuario.groups.filter(name="Direccion").exists())
+        self.assertTrue(usuario.is_staff)
+
+    def test_importador_conserva_apellidos_compuestos(self):
+        casos = {
+            "CAMACHO DE LA CRUZ JOSE LUIS": ("Jose Luis", "Camacho", "De La Cruz"),
+            "MORENO DE LEON CARLOS DANIEL": ("Carlos Daniel", "Moreno", "De Leon"),
+            "DE COSS FARRERA CITLALI": ("Citlali", "De Coss", "Farrera"),
+            "DE LA MORA MARTINEZ EDGAR GERARDO": ("Edgar Gerardo", "De La Mora", "Martinez"),
+            "DEL VILLAR MARTINEZ LHEON": ("Lheon", "Del Villar", "Martinez"),
+        }
+        for nombre, esperado in casos.items():
+            with self.subTest(nombre=nombre):
+                self.assertEqual(separar_nombre(nombre), esperado)
+
     @classmethod
     def setUpTestData(cls):
         hoy = timezone.localdate()
@@ -22,8 +56,12 @@ class PrefecturaTests(TestCase):
         cls.alumno = Alumno.objects.create(
             matricula="TEST-PREF-001", nombres="Ana", apellido_paterno="Lopez",
             grupo=grupo, codigo_qr="qr-test-prefecto",
+            contacto_emergencia_nombre="Contacto Privado",
+            contacto_emergencia_telefono="5550001234",
+            informacion_medica="Alergia Privada",
         )
         prefectos = Group.objects.get(name="Prefectos")
+        direccion = Group.objects.get(name="Direccion")
         cls.prefecto_1 = User.objects.create_user(
             username="prefecto1", password="clave-prueba", first_name="Uno",
         )
@@ -31,6 +69,11 @@ class PrefecturaTests(TestCase):
             username="prefecto2", password="clave-prueba", first_name="Dos",
         )
         cls.ajeno = User.objects.create_user(username="ajeno", password="clave-prueba")
+        cls.director = User.objects.create_user(
+            username="jorge.moran", password="clave-direccion-prueba",
+            first_name="Jorge", last_name="Moran",
+        )
+        cls.director.groups.add(direccion)
         cls.prefecto_1.groups.add(prefectos)
         cls.prefecto_2.groups.add(prefectos)
 
@@ -63,6 +106,20 @@ class PrefecturaTests(TestCase):
         self.assertContains(scanner, "Uno")
         self.assertContains(scanner, 'rel="manifest"')
 
+    def test_direccion_puede_cambiar_a_cuenta_de_prefectura(self):
+        self.client.force_login(self.director)
+        self.assertRedirects(self.client.get(reverse("asistencias:prefectos")),
+                             reverse("asistencias:prefecto_login"))
+        response = self.client.post(reverse("asistencias:prefecto_login"), {
+            "username": "prefecto1", "password": "clave-prueba",
+        })
+        self.assertRedirects(response, reverse("asistencias:prefectos"))
+        self.assertContains(self.client.get(reverse("asistencias:prefectos")), "Prefectura")
+        self.client.force_login(self.director)
+        self.assertEqual(self.client.post(reverse("asistencias:registrar_prefecto"),
+                                          data=json.dumps({"codigo": self.alumno.codigo_qr}),
+                                          content_type="application/json").status_code, 403)
+
     def test_escaneo_conserva_quien_registro_y_ajusto(self):
         url = reverse("asistencias:registrar_prefecto")
         payload = json.dumps({"codigo": self.alumno.codigo_qr})
@@ -87,24 +144,88 @@ class PrefecturaTests(TestCase):
         self.assertEqual(registro.estado, RegistroAsistencia.Estado.RETARDO)
         self.assertEqual(registro.registrado_por, self.prefecto_1)
         self.assertEqual(registro.modificado_por, self.prefecto_2)
+        self.assertEqual(
+            self.client.get(reverse("asistencias:perfil_alumno", args=[self.alumno.id])).status_code,
+            403,
+        )
+        self.client.force_login(self.director)
         profile = self.client.get(reverse("asistencias:perfil_alumno", args=[self.alumno.id]))
-        self.assertContains(profile, "Detalles de asistencia")
+        self.assertContains(profile, 'class="compact-calendar grade-1"')
+        self.assertNotContains(profile, 'class="attendance-details"')
         self.assertContains(profile, "Uno")
         self.assertContains(profile, "Dos")
-        self.assertContains(profile, 'class="grade-1 can-manage"')
+        self.assertContains(profile, 'class="date-button')
 
     def test_vista_publica_sin_controles_y_manifest(self):
-        profile = self.client.get(reverse("asistencias:perfil_alumno", args=[self.alumno.id]))
-        self.assertContains(profile, 'class="grade-1"')
-        self.assertNotContains(profile, 'class="grade-1 can-manage"')
+        profile_url = reverse("asistencias:perfil_alumno", args=[self.alumno.id])
+        self.assertRedirects(
+            self.client.get(profile_url),
+            f"/control/ingresar/?next={profile_url}",
+        )
+        self.assertRedirects(
+            self.client.get(reverse("asistencias:credencial_alumno", args=[self.alumno.id])),
+            f"/control/ingresar/?next=/alumnos/{self.alumno.id}/credencial/",
+        )
+        qr_url = reverse("asistencias:alumno_publico", args=[self.alumno.codigo_qr])
+        self.assertRedirects(self.client.get(qr_url), f"/estudiantes/ingresar/?next={qr_url}")
+        acceso = emitir_acceso(self.alumno.pk)
+        self.assertTrue(self.client.login(username=acceso["usuario"], password=acceso["contrasena"]))
+        self.assertRedirects(self.client.get(qr_url), reverse("asistencias:portal_alumno"))
+        portal = self.client.get(reverse("asistencias:portal_alumno"))
+        self.assertContains(portal, "Ana")
+        self.assertContains(portal, 'class="compact-calendar grade-1"')
+        for privado in ("Contacto de emergencia", "Contacto Privado", "5550001234", "Alergia Privada", self.alumno.matricula):
+            self.assertNotContains(portal, privado)
         manifest = self.client.get(reverse("asistencias:prefecto_manifest"))
         self.assertEqual(manifest.status_code, 200)
         self.assertEqual(manifest.json()["start_url"], "/prefectos/")
         self.assertEqual(len(manifest.json()["icons"]), 2)
+        self.assertEqual(self.client.get(reverse("asistencias:estudiante_manifest")).json()["start_url"], "/estudiantes/")
+
+    def test_cuentas_alumnos_solo_direccion_y_contrasenas_no_reutilizadas(self):
+        url = reverse("asistencias:cuentas_alumnos")
+        self.assertRedirects(self.client.get(url), f"/control/ingresar/?next={url}")
+        self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.post(url, {"accion": "crear_faltantes"}).status_code, 403)
+        self.client.force_login(self.director)
+        response = self.client.post(url, {"accion": "crear_faltantes"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["accesos"]), 1)
+        acceso = response.context["accesos"][0]
+        cuenta = CuentaAlumno.objects.get(alumno=self.alumno)
+        self.assertNotEqual(cuenta.usuario.password, acceso["contrasena"])
+        self.assertTrue(cuenta.usuario.check_password(acceso["contrasena"]))
+        self.assertEqual(len(self.client.post(url, {"accion": "crear_faltantes"}).context["accesos"]), 0)
+        nuevo = self.client.post(url, {"accion": "restablecer", "alumno_id": self.alumno.pk}).context["accesos"][0]
+        cuenta.usuario.refresh_from_db()
+        self.assertFalse(cuenta.usuario.check_password(acceso["contrasena"]))
+        self.assertTrue(cuenta.usuario.check_password(nuevo["contrasena"]))
+
+    def test_estudiante_solo_ve_su_propio_historial(self):
+        otro = Alumno.objects.create(
+            matricula="TEST-OTRO-002", nombres="Beto", apellido_paterno="Martinez",
+            grupo=self.alumno.grupo, codigo_qr="qr-test-otro",
+        )
+        acceso = emitir_acceso(self.alumno.pk)
+        emitir_acceso(otro.pk)
+        login = reverse("asistencias:estudiante_login")
+        denegado = self.client.post(login, {"username": "prefecto1", "password": "clave-prueba"})
+        self.assertEqual(denegado.status_code, 200)
+        self.assertFalse(denegado.wsgi_request.user.is_authenticated)
+        self.assertTrue(self.client.login(username=acceso["usuario"], password=acceso["contrasena"]))
+        self.assertEqual(self.client.get(reverse("asistencias:alumno_publico", args=[otro.codigo_qr])).status_code, 403)
+        self.assertEqual(self.client.get(reverse("asistencias:vista_alumno", args=[otro.pk])).status_code, 403)
+        self.assertEqual(self.client.get(reverse("asistencias:perfil_alumno", args=[otro.pk])).status_code, 403)
+        self.assertEqual(self.client.get(reverse("asistencias:cuentas_alumnos")).status_code, 403)
+        portal = self.client.get(reverse("asistencias:portal_alumno"))
+        self.assertEqual(portal.status_code, 200)
+        self.assertContains(portal, "Ana")
+        self.assertNotContains(portal, "Beto")
+        self.assertIn("no-store", portal.headers["Cache-Control"])
 
     def test_reporte_ausencias_distingue_faltas_de_sin_registro(self):
         url = reverse("asistencias:reporte_ausencias")
-        self.assertRedirects(self.client.get(url), f"/prefectos/ingresar/?next={url}")
+        self.assertRedirects(self.client.get(url), f"/control/ingresar/?next={url}")
         self.client.force_login(self.ajeno)
         self.assertEqual(self.client.get(url).status_code, 403)
 
@@ -119,6 +240,8 @@ class PrefecturaTests(TestCase):
             registrado_por=self.prefecto_1,
         )
         self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_login(self.director)
         response = self.client.get(url, {"grado": "1", "grupo": "A"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["totales"]["faltas"], 1)
@@ -130,3 +253,240 @@ class PrefecturaTests(TestCase):
         self.assertEqual(self.client.get(url, {"fecha": "fecha-invalida"}).status_code, 400)
         futuro = timezone.localdate() + timedelta(days=1)
         self.assertEqual(self.client.get(url, {"fecha": futuro.isoformat()}).status_code, 400)
+
+    def test_direccion_login_y_salida_protegen_directorio(self):
+        control = reverse("asistencias:control")
+        login = reverse("asistencias:direccion_login")
+        self.assertRedirects(self.client.get(control), f"{login}?next={control}")
+
+        self.assertRedirects(self.client.get(reverse("asistencias:inicio")),
+                             f"{login}?next=/")
+        response = self.client.post(login, {
+            "username": "prefecto1", "password": "clave-prueba",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+        self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.get(control).status_code, 403)
+        self.client.logout()
+        self.assertTrue(self.client.login(username="jorge.moran", password="clave-direccion-prueba"))
+        response = self.client.get(control)
+        self.assertContains(response, "Directorio escolar")
+        self.assertContains(response, "Salir")
+        self.assertIn("no-store", response.headers["Cache-Control"])
+        self.assertContains(
+            self.client.get(reverse("asistencias:perfil_alumno", args=[self.alumno.id])),
+            "Alergia Privada",
+        )
+        self.assertEqual(self.client.get(reverse("asistencias:direccion_logout")).status_code, 405)
+        salida = self.client.post(reverse("asistencias:direccion_logout"))
+        self.assertRedirects(salida, login)
+        self.assertRedirects(self.client.get(control), f"{login}?next={control}")
+
+    def test_panel_visual_conserva_qr_impresion_y_navegacion(self):
+        self.client.force_login(self.director)
+        for nombre in ("control", "calendario_escolar", "cuentas_alumnos", "reporte_ausencias"):
+            pagina = self.client.get(reverse(f"asistencias:{nombre}"))
+            self.assertEqual(pagina.status_code, 200)
+            self.assertContains(pagina, "asistencias/dashboard")
+            self.assertContains(pagina, 'class="dashboard-sidebar"')
+            self.assertContains(pagina, reverse("asistencias:direccion_logout"))
+        perfil = self.client.get(reverse("asistencias:perfil_alumno", args=[self.alumno.pk]))
+        self.assertContains(perfil, reverse("asistencias:qr_alumno", args=[self.alumno.pk]))
+        self.assertContains(perfil, reverse("asistencias:vista_alumno", args=[self.alumno.pk]))
+        self.assertContains(perfil, reverse("asistencias:credencial_alumno", args=[self.alumno.pk]))
+        credencial = self.client.get(reverse("asistencias:credencial_alumno", args=[self.alumno.pk]))
+        self.assertContains(credencial, 'window.print()')
+        self.assertContains(credencial, reverse("asistencias:qr_alumno", args=[self.alumno.pk]))
+        self.assertContains(credencial, "asistencias/credencial")
+        self.assertContains(credencial, "asistencias/escuela-fmptm")
+        self.assertContains(credencial, "asistencias/colima-escudo")
+        self.assertContains(credencial, "Contacto Privado")
+        self.assertContains(credencial, "5550001234")
+        self.assertContains(credencial, 'class="card front grade-1"')
+        self.assertContains(credencial, 'class="card back grade-1"')
+
+    def test_direccion_puede_previsualizar_portal_sin_abrirlo_a_otros(self):
+        vista = reverse("asistencias:vista_alumno", args=[self.alumno.pk])
+        qr = reverse("asistencias:alumno_publico", args=[self.alumno.codigo_qr])
+        self.assertRedirects(self.client.get(vista), f"/control/ingresar/?next={vista}")
+        self.client.force_login(self.director)
+        pagina = self.client.get(vista)
+        self.assertContains(pagina, "Vista previa del alumno")
+        self.assertContains(pagina, reverse("asistencias:perfil_alumno", args=[self.alumno.pk]))
+        self.assertNotContains(pagina, reverse("asistencias:estudiante_logout"))
+        self.assertRedirects(self.client.get(qr), vista)
+        self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.get(vista).status_code, 403)
+
+    def test_directorio_abre_perfil_y_ordenamiento(self):
+        self.client.force_login(self.director)
+        pagina = self.client.get(reverse("asistencias:control"))
+        self.assertContains(pagina, reverse("asistencias:perfil_alumno", args=[self.alumno.pk]))
+        self.assertContains(pagina, "asistencias/directorio")
+        self.assertContains(pagina, 'data-sort="0"')
+        self.assertContains(pagina, 'data-sort="4"')
+
+    def test_direccion_edita_datos_y_tutores(self):
+        ruta = reverse("asistencias:editar_alumno", args=[self.alumno.pk])
+        self.assertEqual(self.client.get(ruta).status_code, 302)
+        self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.get(ruta).status_code, 403)
+        self.client.force_login(self.director)
+        response = self.client.post(ruta, {
+            "nombres": "Ana Maria", "apellido_paterno": "Lopez", "apellido_materno": "Rios",
+            "matricula": self.alumno.matricula, "grupo": self.alumno.grupo_id,
+            "fecha_nacimiento": "2012-04-12", "tipo_sangre": "O+",
+            "informacion_medica": "Alergia", "contacto_emergencia_nombre": "Contacto",
+            "contacto_emergencia_telefono": "5550011223",
+            "madre_nombre": "Maria Lopez", "madre_telefono": "5551234567",
+            "padre_nombre": "", "padre_telefono": "",
+        })
+        self.assertRedirects(response, reverse("asistencias:perfil_alumno", args=[self.alumno.pk]))
+        self.alumno.refresh_from_db()
+        self.assertEqual(self.alumno.nombres, "Ana Maria")
+        self.assertEqual(self.alumno.tipo_sangre, "O+")
+        self.assertTrue(self.alumno.tutores.filter(parentesco=Tutor.Parentesco.MADRE, nombre="Maria Lopez").exists())
+
+    def test_foto_privada_y_visible_en_credencial(self):
+        image = BytesIO()
+        Image.new("RGB", (50, 60), "blue").save(image, format="JPEG")
+        foto = SimpleUploadedFile("foto.jpg", image.getvalue(), content_type="image/jpeg")
+        ruta = reverse("asistencias:editar_alumno", args=[self.alumno.pk])
+        foto_ruta = reverse("asistencias:foto_alumno", args=[self.alumno.pk])
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.force_login(self.director)
+            response = self.client.post(ruta, {
+                "nombres": self.alumno.nombres, "apellido_paterno": self.alumno.apellido_paterno,
+                "apellido_materno": "", "matricula": self.alumno.matricula,
+                "grupo": self.alumno.grupo_id, "fecha_nacimiento": "", "tipo_sangre": "",
+                "informacion_medica": "", "contacto_emergencia_nombre": "",
+                "contacto_emergencia_telefono": "", "madre_nombre": "", "madre_telefono": "",
+                "padre_nombre": "", "padre_telefono": "", "foto": foto,
+            })
+            self.assertEqual(response.status_code, 302)
+            foto_response = self.client.get(foto_ruta)
+            self.assertEqual(foto_response.status_code, 200)
+            self.assertEqual(foto_response["Content-Type"], "image/jpeg")
+            foto_response.close()
+            self.assertContains(self.client.get(reverse("asistencias:credencial_alumno", args=[self.alumno.pk])), foto_ruta)
+            self.client.logout()
+            self.assertEqual(self.client.get(foto_ruta).status_code, 302)
+
+    def test_accesos_comparten_control_de_contrasena(self):
+        for nombre in ("direccion_login", "prefecto_login", "estudiante_login"):
+            pagina = self.client.get(reverse(f"asistencias:{nombre}"))
+            self.assertEqual(pagina.status_code, 200)
+            self.assertContains(pagina, "asistencias/login")
+            self.assertContains(pagina, 'class="password-toggle"')
+            self.assertContains(pagina, 'type="password"')
+            self.assertContains(pagina, 'type="button"')
+
+    def test_calendario_oficial_y_fines_de_semana(self):
+        ciclo = CicloEscolar.objects.get(nombre="2026-2027")
+        self.assertEqual(ciclo.fecha_inicio, date(2026, 8, 31))
+        self.assertEqual(ciclo.fecha_fin, date(2027, 7, 9))
+        cierres = set(DiaEscolar.objects.filter(ciclo_escolar=ciclo).exclude(tipo="informativo").values_list("fecha", flat=True))
+        dia, lectivos = ciclo.fecha_inicio, 0
+        while dia <= ciclo.fecha_fin:
+            lectivos += dia.weekday() < 5 and dia not in cierres
+            dia += timedelta(days=1)
+        self.assertEqual(lectivos, 185)
+        self.assertTrue(DiaEscolar.objects.filter(ciclo_escolar=ciclo, fecha=date(2026, 10, 30), tipo="consejo").exists())
+        self.alumno.grupo.ciclo_escolar = ciclo
+        self.alumno.grupo.save(update_fields=["ciclo_escolar"])
+        self.client.force_login(self.director)
+        profile = self.client.get(reverse("asistencias:perfil_alumno", args=[self.alumno.pk]), {"mes": "2026-10"})
+        self.assertContains(profile, 'class="date-button fin_semana"')
+        self.assertContains(profile, "Consejo Tecnico Escolar")
+        self.assertNotContains(profile, 'name="fecha" value="2026-10-30"')
+        calendar_page = self.client.get(reverse("asistencias:calendario_escolar"), {"ciclo": ciclo.pk, "mes": "2026-10"})
+        self.assertContains(calendar_page, "Consejo Tecnico Escolar")
+        self.assertContains(calendar_page, 'class="day weekend"')
+        self.assertContains(calendar_page, 'role="tablist"')
+
+    def test_dialogo_calendario_y_registros_del_mes(self):
+        ciclo = CicloEscolar.objects.get(nombre="2026-2027")
+        octubre = DiaEscolar.objects.create(
+            ciclo_escolar=ciclo, fecha=date(2026, 10, 21),
+            tipo=DiaEscolar.Tipo.CANCELACION, descripcion="Huracan: Alerta",
+            registrado_por=self.director,
+        )
+        noviembre = DiaEscolar.objects.create(
+            ciclo_escolar=ciclo, fecha=date(2026, 11, 4),
+            tipo=DiaEscolar.Tipo.CANCELACION, descripcion="Sismo: Revision",
+            registrado_por=self.director,
+        )
+        self.client.force_login(self.director)
+        url = reverse("asistencias:calendario_escolar")
+        respuesta = self.client.get(url, {"ciclo": ciclo.pk, "mes": "2026-10"})
+        self.assertContains(respuesta, 'id="calendar-editor"')
+        self.assertContains(respuesta, 'id="cancel-editor"')
+        self.assertContains(respuesta, 'id="event-editor"')
+        self.assertContains(respuesta, "asistencias/direccion_calendar")
+        self.assertContains(respuesta, "Cancelaciones de octubre")
+        self.assertEqual(list(respuesta.context["cancelaciones_mes"]), [octubre])
+        respuesta = self.client.get(url, {"ciclo": ciclo.pk, "mes": "2026-11"})
+        self.assertContains(respuesta, "Cancelaciones de noviembre")
+        self.assertEqual(list(respuesta.context["cancelaciones_mes"]), [noviembre])
+
+    def test_solo_direccion_cancela_y_restaura(self):
+        ciclo = CicloEscolar.objects.get(nombre="2026-2027")
+        self.alumno.grupo.ciclo_escolar = ciclo
+        self.alumno.grupo.save(update_fields=["ciclo_escolar"])
+        url = reverse("asistencias:cancelar_dia")
+        payload = {"ciclo_id": ciclo.pk, "fecha": "2026-10-02", "motivo": "huracan", "nota": "Alerta local"}
+        self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.post(url, payload).status_code, 403)
+        self.client.force_login(self.director)
+        self.assertEqual(self.client.post(url, payload).status_code, 302)
+        cierre = DiaEscolar.objects.get(ciclo_escolar=ciclo, fecha=date(2026, 10, 2), tipo="cancelacion")
+        self.assertEqual(cierre.registrado_por, self.director)
+        self.assertIn("Alerta local", cierre.descripcion)
+        self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.post(reverse("asistencias:marcar_manual"), {
+            "alumno_id": self.alumno.pk, "fecha": "2026-10-02", "estado": "ausente",
+        }).status_code, 409)
+        self.client.force_login(self.director)
+        self.assertEqual(self.client.post(url, {**payload, "fecha": "2026-10-30"}).status_code, 409)
+        RegistroAsistencia.objects.create(alumno=self.alumno, fecha=date(2026, 10, 2),
+                                          tipo="entrada", estado="ausente", registrado_por=self.prefecto_1)
+        report = self.client.get(reverse("asistencias:reporte_ausencias"), {"fecha": "2026-10-02"})
+        self.assertEqual(report.context["totales"]["sin_registro"], 0)
+        self.assertEqual(report.context["totales"]["faltas"], 0)
+        self.assertContains(report, "Alerta local")
+        profile = self.client.get(reverse("asistencias:perfil_alumno", args=[self.alumno.pk]), {"mes": "2026-10"})
+        self.assertEqual(profile.context["resumen"]["ausentes"], 0)
+        self.assertEqual(self.client.post(reverse("asistencias:restaurar_dia"), {"ciclo_id": ciclo.pk, "fecha": "2026-10-02"}).status_code, 302)
+        self.assertFalse(DiaEscolar.objects.filter(pk=cierre.pk).exists())
+
+    def test_direccion_gestiona_eventos_y_alumnos_los_ven(self):
+        ciclo = CicloEscolar.objects.get(nombre="2026-2027")
+        self.alumno.grupo.ciclo_escolar = ciclo
+        self.alumno.grupo.save(update_fields=["ciclo_escolar"])
+        guardar = reverse("asistencias:guardar_evento")
+        eliminar = reverse("asistencias:eliminar_evento")
+        datos = {"ciclo_id": ciclo.pk, "fecha": "2026-10-08", "titulo": "Feria de ciencias", "detalle": "Patio central"}
+        self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.post(guardar, datos).status_code, 403)
+        self.client.force_login(self.director)
+        self.assertEqual(self.client.post(guardar, datos).status_code, 302)
+        evento = EventoEscolar.objects.get(ciclo_escolar=ciclo, titulo="Feria de ciencias")
+        self.assertEqual(evento.registrado_por, self.director)
+        self.assertEqual(self.client.post(guardar, {**datos, "evento_id": evento.pk, "titulo": "Feria escolar"}).status_code, 302)
+        evento.refresh_from_db()
+        self.assertEqual(evento.titulo, "Feria escolar")
+        self.assertEqual(self.client.post(guardar, {**datos, "titulo": "", "evento_id": ""}).status_code, 400)
+        self.assertEqual(self.client.post(guardar, {**datos, "fecha": "2027-08-01"}).status_code, 404)
+        profile = self.client.get(reverse("asistencias:perfil_alumno", args=[self.alumno.pk]), {"mes": "2026-10"})
+        self.assertContains(profile, "Feria escolar")
+        acceso = emitir_acceso(self.alumno.pk)
+        self.assertTrue(self.client.login(username=acceso["usuario"], password=acceso["contrasena"]))
+        portal = self.client.get(reverse("asistencias:portal_alumno"), {"mes": "2026-10"})
+        self.assertContains(portal, "Feria escolar")
+        self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.post(eliminar, {"ciclo_id": ciclo.pk, "evento_id": evento.pk}).status_code, 403)
+        self.client.force_login(self.director)
+        self.assertEqual(self.client.post(eliminar, {"ciclo_id": ciclo.pk, "evento_id": evento.pk}).status_code, 302)
+        self.assertFalse(EventoEscolar.objects.filter(pk=evento.pk).exists())
+        self.assertTrue(DiaEscolar.objects.filter(ciclo_escolar=ciclo, fecha=date(2026, 10, 30), tipo="consejo").exists())

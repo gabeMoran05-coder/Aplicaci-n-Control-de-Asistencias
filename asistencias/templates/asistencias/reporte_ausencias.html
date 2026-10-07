@@ -1,4 +1,5 @@
 <!doctype html>
+{% load static %}
 <html lang="es-MX">
 <head>
     <meta charset="utf-8">
@@ -10,12 +11,15 @@
         @media(max-width:700px){.top{display:block}.actions{margin-top:14px}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.counts{gap:5px 12px}.group-head{align-items:flex-start;flex-direction:column}.filters .field{flex:1 1 130px}}
         @media print{@page{size:A4;margin:13mm}body{background:#fff;font-size:11px}.wrap{width:auto;margin:0}.actions,.filters{display:none}.top{margin-bottom:14px}.top h1{font-size:22px}.summary{gap:5px}.metric{break-inside:avoid;padding:7px}.metric strong{font-size:15px}.note{margin-bottom:12px}.group{break-inside:avoid;box-shadow:none;margin-bottom:10px}.group-head,.list-title,th,td{padding-top:6px;padding-bottom:6px}.foot{margin-top:12px}}
     </style>
+    <link rel="stylesheet" href="{% static 'asistencias/dashboard.css' %}">
 </head>
-<body>
+<body class="dashboard"><div class="app-frame">
+{% include 'asistencias/dashboard_nav.html' with active_section='reporte' %}
+<div class="app-body">{% include 'asistencias/dashboard_sidebar.html' with active_section='reporte' %}
 <main class="wrap">
     <header class="top">
         <div><h1>Reporte de ausencias</h1><p class="sub">{{ fecha|date:'d/m/Y' }} · Ciclo escolar correspondiente a la fecha</p></div>
-        <div class="actions"><a class="button" href="{% url 'asistencias:control' %}">Alumnos</a><button class="button primary" type="button" onclick="window.print()">Imprimir / Guardar PDF</button></div>
+        <div class="actions"><a class="button" href="{% url 'asistencias:control' %}">Alumnos</a><button class="button primary" type="button" onclick="window.print()">Imprimir / Guardar PDF</button><form method="post" action="{% url 'asistencias:direccion_logout' %}">{% csrf_token %}<button class="button" type="submit">Salir</button></form></div>
     </header>
     <form class="filters" method="get">
         <div class="field"><label for="fecha">Fecha</label><input id="fecha" name="fecha" type="date" value="{{ fecha|date:'Y-m-d' }}" max="{{ hoy|date:'Y-m-d' }}" required></div>
@@ -30,7 +34,7 @@
         <div class="metric"><span>Faltas registradas</span><strong>{{ totales.faltas }}</strong></div>
         <div class="metric"><span>Sin registro</span><strong>{{ totales.sin_registro }}</strong></div>
     </section>
-    <p class="note">“Sin registro” significa que aún no hay entrada ni falta capturada para esa fecha. No se considera una falta confirmada.{% if es_fin_semana %} La fecha seleccionada cae en fin de semana; comprueba si hubo actividades escolares.{% endif %} Justificados: {{ totales.justificados }}.</p>
+    <p class="note">“Sin registro” significa que aún no hay entrada ni falta capturada para esa fecha. No se considera una falta confirmada.{% if cierre %} No hay clases: {{ cierre }}. No se cuentan alumnos pendientes.{% endif %} Justificados: {{ totales.justificados }}.</p>
     {% for seccion in secciones %}
     <section class="group grade-{{ seccion.grupo.grado.orden }}">
         <header class="group-head"><div><h2>{{ seccion.grupo.grado.nombre }} {{ seccion.grupo.nombre }}</h2><small>{{ seccion.grupo.ciclo_escolar.nombre }} · {{ seccion.total }} alumnos</small></div><div class="counts"><span>Asistieron <strong>{{ seccion.presentes }}</strong></span><span>Retardos <strong>{{ seccion.retardos }}</strong></span><span>Justificados <strong>{{ seccion.justificados }}</strong></span><span>Faltas <strong>{{ seccion.faltas|length }}</strong></span><span>Sin registro <strong>{{ seccion.sin_registro|length }}</strong></span></div></header>
@@ -40,6 +44,6 @@
     </section>
     {% empty %}<p class="no-groups">No hay grupos activos para la fecha y los filtros seleccionados.</p>{% endfor %}
     <footer class="foot">Generado por {{ generado_por }} · {{ generado_en|date:'d/m/Y H:i' }}. Documento de uso interno escolar.</footer>
-</main>
+</main></div></div>
 </body>
 </html>

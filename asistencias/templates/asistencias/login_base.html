@@ -1,0 +1,36 @@
+<!doctype html>
+{% load static %}
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow,noarchive">
+    <meta name="theme-color" content="#10191e">
+    {% block mobile_meta %}{% endblock %}
+    <title>{% block title %}Acceso{% endblock %} - AsisteEscolar</title>
+    <link rel="stylesheet" href="{% static 'asistencias/login.css' %}">
+    <script src="{% static 'asistencias/login.js' %}" defer></script>
+</head>
+<body>
+    <main class="login" aria-labelledby="login-title">
+        <div class="login-brand"><span class="brand-mark" aria-hidden="true">&#10003;</span><span>AsisteEscolar</span></div>
+        <header class="login-heading">
+            <span class="role-label">{% block role %}Acceso escolar{% endblock %}</span>
+            <h1 id="login-title">{% block heading %}Iniciar sesion{% endblock %}</h1>
+            <p>{% block subtitle %}{% endblock %}</p>
+        </header>
+        <form method="post" autocomplete="on">
+            {% csrf_token %}
+            {% if form.errors %}<p class="error" role="alert">{% block error_message %}Revisa tu usuario y contrasena.{% endblock %}</p>{% endif %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <div class="form-field"><label for="{{ form.username.id_for_label }}">Usuario</label>{{ form.username }}</div>
+            <div class="form-field"><label for="{{ form.password.id_for_label }}">Contraseña</label><div class="password-field">{{ form.password }}<button class="password-toggle" type="button" aria-controls="{{ form.password.id_for_label }}" aria-label="Mostrar contraseña" aria-pressed="false" title="Mostrar contraseña">
+                <svg class="eye-open" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="eye-closed" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.576 1 1 0 0 1 0 .696 10.8 10.8 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499A10.75 10.75 0 0 1 2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.448-5.326"/><path d="m2 2 20 20"/></svg>
+            </button></div></div>
+            <button class="submit" type="submit">Entrar</button>
+        </form>
+        {% block footer %}{% endblock %}
+    </main>
+</body>
+</html>

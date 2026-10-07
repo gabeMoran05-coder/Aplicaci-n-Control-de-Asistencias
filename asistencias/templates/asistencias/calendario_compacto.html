@@ -1,0 +1,20 @@
+<section class="compact-calendar grade-{{ alumno.grupo.grado.orden }}" aria-label="Calendario de asistencia">
+    <div class="calendar-layout">
+        <div class="month-board">
+            <div class="month-bar"><h2 class="month-name">{{ mes_nombre }} {{ mes_inicio|date:'Y' }}</h2><div class="month-nav"><a href="?mes={{ mes_anterior|date:'Y-m' }}" aria-label="Mes anterior" title="Mes anterior">‹</a><a href="?mes={{ mes_siguiente|date:'Y-m' }}" aria-label="Mes siguiente" title="Mes siguiente">›</a></div></div>
+            <div class="week-labels">{% for nombre in dias_calendario %}<span>{{ nombre }}</span>{% endfor %}</div>
+            <div class="month-grid">{% for semana in calendario %}{% for dia in semana %}
+                {% if dia.fuera_mes %}<div class="date-cell out" aria-hidden="true"></div>{% else %}
+                <div class="date-cell"><button class="date-button {{ dia.estado }}{% if dia.es_hoy %} is-today{% endif %}{% if dia.actividades %} has-event{% endif %}" type="button" aria-pressed="false" aria-label="{{ dia.fecha|date:'j M Y' }}, {{ dia.etiqueta }}" data-detail="dia-{{ dia.fecha|date:'Ymd' }}"><span>{{ dia.dia }}</span><i class="status-dot" aria-hidden="true"></i></button></div>
+                <template id="dia-{{ dia.fecha|date:'Ymd' }}"><h3>{{ dia.fecha|date:'l j F Y' }}</h3><span class="day-status {{ dia.estado }}">{{ dia.estado_registro|default:dia.etiqueta }}</span>
+                    {% if dia.tiene_registro %}<ul class="detail-list"><li><span>Hora de registro</span><strong>{{ dia.hora }}</strong></li>{% if vista_direccion %}<li><span>Registró</span><strong>{{ dia.responsable }}</strong></li>{% if dia.ajustado_por %}<li><span>Último ajuste</span><strong>{{ dia.ajustado_por }}</strong></li>{% endif %}{% endif %}</ul>{% elif not dia.cierre %}<p>No hay un registro de entrada para este día. Esto no confirma una falta.</p>{% endif %}
+                    {% if dia.cierre %}<p>{{ dia.cierre }}. No se cuenta como falta.</p>{% endif %}
+                    {% for evento in dia.eventos %}<div class="day-event"><strong>{{ evento.descripcion }}</strong>{% if evento.detalle %}<p>{{ evento.detalle }}</p>{% endif %}</div>{% endfor %}
+                    {% if can_manage_attendance and dia.editable %}{% include 'asistencias/marcas_asistencia.html' %}{% endif %}
+                </template>{% endif %}
+            {% endfor %}{% endfor %}</div>
+            <div class="calendar-key"><span><i class="present"></i>Asistió</span><span><i class="late"></i>Retardo</span><span><i class="absent"></i>Falta</span><span><i class="event"></i>Evento</span></div>
+        </div>
+        <div class="selected-day" aria-live="polite"></div>
+    </div>
+</section>

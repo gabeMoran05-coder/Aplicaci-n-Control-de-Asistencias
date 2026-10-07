@@ -1,0 +1,17 @@
+<div class="marks">
+    {% for estado, etiqueta in estados_manual %}
+    <form method="post" action="{% url 'asistencias:marcar_manual' %}">{% csrf_token %}
+        <input type="hidden" name="alumno_id" value="{{ alumno.id }}">
+        <input type="hidden" name="fecha" value="{{ dia.fecha|date:'Y-m-d' }}">
+        <input type="hidden" name="estado" value="{{ estado }}">
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="mini" type="submit">{{ etiqueta }}</button>
+    </form>
+    {% endfor %}
+    <form method="post" action="{% url 'asistencias:limpiar_manual' %}">{% csrf_token %}
+        <input type="hidden" name="alumno_id" value="{{ alumno.id }}">
+        <input type="hidden" name="fecha" value="{{ dia.fecha|date:'Y-m-d' }}">
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="mini clear" type="submit">Limpiar</button>
+    </form>
+</div>

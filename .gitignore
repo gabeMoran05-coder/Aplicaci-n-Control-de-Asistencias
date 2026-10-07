@@ -16,6 +16,8 @@ env/
 .env
 .env.*
 policy.yaml
+private/
+staticfiles/
 
 # IDE
 .vscode/

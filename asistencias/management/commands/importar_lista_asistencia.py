@@ -15,13 +15,20 @@ def separar_nombre(nombre):
     partes = nombre.split()
     if len(partes) < 3:
         raise ValueError(f"Nombre incompleto: {nombre}")
-    apellido_paterno = partes[0]
-    if partes[1:4] == ["DE", "LA", "CRUZ"]:
-        apellido_materno = "DE LA CRUZ"
-        nombres = partes[4:]
-    else:
-        apellido_materno = partes[1]
-        nombres = partes[2:]
+
+    def tomar_apellido(restantes):
+        if restantes[:2] == ["DE", "LA"]:
+            longitud = 3
+        elif restantes[0] in {"DE", "DEL"}:
+            longitud = 2
+        else:
+            longitud = 1
+        return " ".join(restantes[:longitud]), restantes[longitud:]
+
+    apellido_paterno, restantes = tomar_apellido(partes)
+    if not restantes:
+        raise ValueError(f"Falta apellido materno: {nombre}")
+    apellido_materno, nombres = tomar_apellido(restantes)
     if not nombres:
         raise ValueError(f"Faltan nombres: {nombre}")
     return " ".join(nombres).title(), apellido_paterno.title(), apellido_materno.title()

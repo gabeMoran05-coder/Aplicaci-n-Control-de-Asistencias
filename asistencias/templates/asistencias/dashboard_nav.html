@@ -1,0 +1,11 @@
+<header class="topbar">
+    <a class="brand" href="{% url 'asistencias:control' %}"><span class="mark" aria-hidden="true">&#10003;</span>AsisteEscolar</a>
+    <nav class="nav" aria-label="Navegacion principal">
+        <a{% if active_section == 'alumnos' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:control' %}">Alumnos</a>
+        <a{% if active_section == 'calendario' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:calendario_escolar' %}">Calendario</a>
+        <a{% if active_section == 'cuentas' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:cuentas_alumnos' %}">Cuentas</a>
+        <a href="{% url 'asistencias:prefectos' %}">Prefectos</a>
+        {% if request.user.is_staff %}<a href="/admin/">Admin</a>{% endif %}
+        <form method="post" action="{% url 'asistencias:direccion_logout' %}">{% csrf_token %}<button type="submit">Salir</button></form>
+    </nav>
+</header>

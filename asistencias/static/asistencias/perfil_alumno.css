@@ -1,0 +1,3 @@
+.profile-photo{display:flex;align-items:center;gap:12px;margin:20px 0 0;color:#687884;font-size:13px}
+.profile-photo img,.profile-photo .photo-empty{width:94px;height:118px;border:1px solid #d0dbe1;border-radius:5px;object-fit:cover;background:#edf3f6}
+.profile-photo .photo-empty{display:grid;place-items:center;color:#1a658f;font-size:23px}

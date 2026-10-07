@@ -25,6 +25,54 @@ class CicloEscolar(TimeStampedModel):
         return self.nombre
 
 
+class DiaEscolar(TimeStampedModel):
+    class Tipo(models.TextChoices):
+        SUSPENSION = "suspension", "Suspension oficial"
+        VACACIONES = "vacaciones", "Vacaciones"
+        RECESO = "receso", "Receso escolar"
+        CONSEJO = "consejo", "Consejo Tecnico"
+        REGISTRO = "registro", "Registro de calificaciones"
+        INFORMATIVO = "informativo", "Actividad escolar"
+        CANCELACION = "cancelacion", "Cancelacion de Direccion"
+
+    ciclo_escolar = models.ForeignKey(CicloEscolar, on_delete=models.CASCADE, related_name="dias_escolares")
+    fecha = models.DateField()
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
+    descripcion = models.CharField(max_length=160)
+    registrado_por = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ["fecha", "tipo"]
+        constraints = [models.UniqueConstraint(fields=["ciclo_escolar", "fecha", "tipo"], name="dia_escolar_unico_por_tipo")]
+
+    @property
+    def sin_clases(self):
+        return self.tipo != self.Tipo.INFORMATIVO
+
+
+class EventoEscolar(TimeStampedModel):
+    ciclo_escolar = models.ForeignKey(CicloEscolar, on_delete=models.CASCADE, related_name="eventos_escolares")
+    fecha = models.DateField()
+    titulo = models.CharField(max_length=100)
+    detalle = models.CharField(max_length=300, blank=True)
+    registrado_por = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ["fecha", "titulo"]
+
+    @property
+    def descripcion(self):
+        return self.titulo
+
+    @property
+    def tipo(self):
+        return "evento"
+
+    @property
+    def sin_clases(self):
+        return False
+
+
 class Grado(TimeStampedModel):
     nombre = models.CharField(max_length=30, unique=True)
     orden = models.PositiveSmallIntegerField(unique=True)
@@ -96,6 +144,7 @@ class Alumno(TimeStampedModel):
     apellido_paterno = models.CharField(max_length=80)
     apellido_materno = models.CharField(max_length=80, blank=True)
     fecha_nacimiento = models.DateField(null=True, blank=True)
+    foto = models.ImageField(upload_to="alumnos/fotos/", blank=True)
     tipo_sangre = models.CharField(max_length=5, blank=True)
     informacion_medica = models.TextField(blank=True)
     contacto_emergencia_nombre = models.CharField(max_length=120, blank=True)
@@ -133,6 +182,18 @@ class Alumno(TimeStampedModel):
     @property
     def grado_nombre(self):
         return self.grupo.grado.nombre
+
+
+class CuentaAlumno(TimeStampedModel):
+    alumno = models.OneToOneField(Alumno, on_delete=models.CASCADE, related_name="cuenta")
+    usuario = models.OneToOneField("auth.User", on_delete=models.CASCADE, related_name="cuenta_alumno")
+
+    class Meta:
+        verbose_name = "cuenta de alumno"
+        verbose_name_plural = "cuentas de alumnos"
+
+    def __str__(self):
+        return self.alumno.nombre_completo
 
 
 class RegistroAsistencia(TimeStampedModel):

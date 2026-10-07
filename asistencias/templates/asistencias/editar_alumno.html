@@ -1,0 +1,25 @@
+{% load static %}
+<!doctype html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Editar alumno - {{ alumno.nombre_completo }}</title>
+    <link rel="stylesheet" href="{% static 'asistencias/dashboard.css' %}">
+    <link rel="stylesheet" href="{% static 'asistencias/editar_alumno.css' %}">
+</head>
+<body class="dashboard"><div class="app-frame">
+{% include 'asistencias/dashboard_nav.html' with active_section='alumnos' %}
+<div class="app-body">{% include 'asistencias/dashboard_sidebar.html' with active_section='alumnos' %}
+<main class="student-edit">
+    <header class="edit-head"><div><a href="{% url 'asistencias:perfil_alumno' alumno.pk %}">Volver al perfil</a><h1>Editar alumno</h1><p>{{ alumno.nombre_completo }}</p></div></header>
+    <form method="post" enctype="multipart/form-data" class="edit-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="error">{{ form.non_field_errors }}</div>{% endif %}
+        <section class="photo-section"><h2>Fotografía</h2><div class="photo-content"><div class="photo-frame">{% if alumno.foto %}<img id="photo-preview" src="{% url 'asistencias:foto_alumno' alumno.pk %}" alt="Foto de {{ alumno.nombre_completo }}">{% else %}<img id="photo-preview" alt="Vista previa de la foto" hidden><span id="photo-placeholder">Sin foto</span>{% endif %}</div><div class="photo-controls"><label class="button" for="camera-input">Tomar foto</label><input id="camera-input" name="foto" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"><label class="button" for="file-input">Elegir archivo</label><input id="file-input" name="foto" type="file" accept="image/jpeg,image/png,image/webp"><label class="remove-photo">{{ form.quitar_foto }} Quitar foto actual</label><p>JPG, PNG o WebP. Máximo 5 MB.</p>{{ form.foto.errors }}</div></div></section>
+        <section><h2>Datos del alumno</h2><div class="fields">{% for campo in form %}{% if campo.name == 'nombres' or campo.name == 'apellido_paterno' or campo.name == 'apellido_materno' or campo.name == 'matricula' or campo.name == 'grupo' or campo.name == 'fecha_nacimiento' or campo.name == 'tipo_sangre' %}<div class="field"><label for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}</div>{% endif %}{% endfor %}</div></section>
+        <section><h2>Emergencia y salud</h2><div class="fields">{% for campo in form %}{% if campo.name == 'contacto_emergencia_nombre' or campo.name == 'contacto_emergencia_telefono' or campo.name == 'informacion_medica' %}<div class="field"><label for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}</div>{% endif %}{% endfor %}</div></section>
+        <section><h2>Madre y padre</h2><div class="fields">{% for campo in form %}{% if campo.name == 'madre_nombre' or campo.name == 'madre_telefono' or campo.name == 'padre_nombre' or campo.name == 'padre_telefono' %}<div class="field"><label for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{{ campo.errors }}</div>{% endif %}{% endfor %}</div></section>
+        <div class="form-actions"><a class="button" href="{% url 'asistencias:perfil_alumno' alumno.pk %}">Cancelar</a><button class="button primary" type="submit">Guardar cambios</button></div>
+    </form>
+</main></div></div><script src="{% static 'asistencias/editar_alumno.js' %}" defer></script>
+</body></html>

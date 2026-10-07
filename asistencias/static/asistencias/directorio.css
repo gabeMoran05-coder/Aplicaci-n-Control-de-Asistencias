@@ -1,0 +1,8 @@
+#student-table th button{display:inline-flex;align-items:center;gap:5px;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-transform:inherit;cursor:pointer}
+#student-table th button:hover,.student-name:hover{color:#116c9c;text-decoration:underline}
+#student-table th button:focus-visible,.student-name:focus-visible{outline:2px solid #d5a637;outline-offset:3px}
+#student-table .sort-arrow{font-size:15px;line-height:1;color:#7b8c96}
+#student-table th[aria-sort] .sort-arrow{color:#116c9c}
+#student-table .student-name{color:#22323b;text-decoration:none;font-weight:600}
+#student-table .avatar{flex:none;overflow:hidden}
+#student-table .avatar img{width:100%;height:100%;object-fit:cover}
