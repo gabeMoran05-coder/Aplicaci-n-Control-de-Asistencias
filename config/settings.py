@@ -156,6 +156,14 @@ LOGIN_URL = 'asistencias:prefecto_login'
 LOGIN_REDIRECT_URL = '/prefectos/'
 LOGOUT_REDIRECT_URL = '/prefectos/ingresar/'
 
+WHATSAPP_ACCESS_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN', '').strip()
+WHATSAPP_ENABLED = os.environ.get('WHATSAPP_ENABLED', 'False').lower() == 'true'
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID', '').strip()
+WHATSAPP_TEMPLATE_NAME = os.environ.get('WHATSAPP_TEMPLATE_NAME', '').strip()
+WHATSAPP_TEMPLATE_LANGUAGE = os.environ.get('WHATSAPP_TEMPLATE_LANGUAGE', 'es_MX').strip()
+WHATSAPP_API_VERSION = os.environ.get('WHATSAPP_API_VERSION', '').strip()
+WHATSAPP_DEFAULT_COUNTRY_CODE = os.environ.get('WHATSAPP_DEFAULT_COUNTRY_CODE', '52').strip()
+
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration

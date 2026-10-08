@@ -16,6 +16,7 @@
 .gestion-field input,.gestion-field select{width:100%;min-height:42px;padding:8px 11px;border:1px solid #c9d6dc;border-radius:7px;background:white;color:#17232b;font:inherit}
 .gestion-field input[type=file]{padding:8px;background:#fff}
 .gestion-field input:focus,.gestion-field select:focus{outline:2px solid #1684b5;outline-offset:1px}
+.gestion-consent{align-content:end}.gestion-consent label{display:flex;align-items:center;gap:8px;min-height:42px;font-size:13px}.gestion-consent input[type=checkbox]{width:17px;min-height:17px;accent-color:#1684b5}
 .gestion-field .errorlist,.gestion-check .errorlist{margin:0;padding:0;list-style:none;color:#b53b3b;font-size:12px}
 .gestion-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
 .gestion-button{display:inline-grid;place-items:center;min-height:40px;padding:9px 15px;border:1px solid #c9d6dc;border-radius:7px;background:#fff;color:#17232b;text-decoration:none;font:600 13px Inter,"Segoe UI",Arial,sans-serif;cursor:pointer}

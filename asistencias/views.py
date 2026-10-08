@@ -30,6 +30,7 @@ from .cuentas import emitir_acceso
 from .ciclos import crear_ciclo_y_promover
 from .listas import extraer_lista_pdf
 from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grupo, Inscripcion, NotificacionWhatsApp, RegistroAsistencia, Tutor
+from .whatsapp import configuracion_whatsapp, despachar_notificaciones, normalizar_telefono
 
 
 GRADOS_CONTROL = [
@@ -200,6 +201,15 @@ def agregar_alumno(request):
             Inscripcion.objects.create(
                 alumno=alumno, ciclo_escolar=alumno.grupo.ciclo_escolar, grupo=alumno.grupo
             )
+            for parentesco in (Tutor.Parentesco.MADRE, Tutor.Parentesco.PADRE):
+                nombre = form.cleaned_data[f"{parentesco}_nombre"]
+                if nombre:
+                    alumno.tutores.add(Tutor.objects.create(
+                        nombre=nombre,
+                        telefono_whatsapp=form.cleaned_data[f"{parentesco}_telefono"],
+                        parentesco=parentesco,
+                        recibe_notificaciones=form.cleaned_data[f"{parentesco}_notificar"],
+                    ))
         acceso = emitir_acceso(alumno.pk)
         return render(request, "asistencias/agregar_alumno.html", {
             "form": AlumnoAltaForm(), "alumno_creado": alumno, "acceso": acceso,
@@ -662,11 +672,17 @@ def editar_alumno(request, alumno_id):
             for parentesco in (Tutor.Parentesco.MADRE, Tutor.Parentesco.PADRE):
                 nombre = form.cleaned_data[f"{parentesco}_nombre"]
                 telefono = form.cleaned_data[f"{parentesco}_telefono"]
+                notificar = form.cleaned_data[f"{parentesco}_notificar"]
                 actual = alumno.tutores.filter(parentesco=parentesco, activo=True).first()
-                if actual and (actual.nombre != nombre or actual.telefono_whatsapp != telefono):
+                if actual and (actual.nombre != nombre or actual.telefono_whatsapp != telefono
+                               or actual.recibe_notificaciones != notificar):
                     alumno.tutores.remove(actual)
-                if nombre and (not actual or actual.nombre != nombre or actual.telefono_whatsapp != telefono):
-                    alumno.tutores.add(Tutor.objects.create(nombre=nombre, telefono_whatsapp=telefono, parentesco=parentesco))
+                if nombre and (not actual or actual.nombre != nombre or actual.telefono_whatsapp != telefono
+                               or actual.recibe_notificaciones != notificar):
+                    alumno.tutores.add(Tutor.objects.create(
+                        nombre=nombre, telefono_whatsapp=telefono, parentesco=parentesco,
+                        recibe_notificaciones=notificar,
+                    ))
             if foto_anterior and foto_anterior != alumno.foto.name:
                 storage = alumno.foto.storage
                 transaction.on_commit(lambda: storage.delete(foto_anterior))
@@ -1266,6 +1282,8 @@ def _etiqueta_estado(estado):
 
 
 def _crear_notificaciones_whatsapp(registro):
+    if not configuracion_whatsapp():
+        return
     alumno = registro.alumno
     mensaje = (
         f"Hola, le informamos que {alumno.nombre_completo} llego a la escuela "
@@ -1273,15 +1291,22 @@ def _crear_notificaciones_whatsapp(registro):
     )
 
     notificaciones = []
+    telefonos = set()
     for tutor in alumno.tutores.filter(activo=True, recibe_notificaciones=True):
+        telefono = normalizar_telefono(tutor.telefono_whatsapp)
+        if not telefono or telefono in telefonos:
+            continue
+        telefonos.add(telefono)
         notificaciones.append(
             NotificacionWhatsApp(
                 registro=registro,
                 tutor=tutor,
-                telefono_destino=tutor.telefono_whatsapp,
+                telefono_destino=telefono,
                 mensaje=mensaje,
             )
         )
 
     if notificaciones:
-        NotificacionWhatsApp.objects.bulk_create(notificaciones)
+        creadas = NotificacionWhatsApp.objects.bulk_create(notificaciones)
+        ids = [notificacion.pk for notificacion in creadas]
+        transaction.on_commit(lambda: despachar_notificaciones(ids))

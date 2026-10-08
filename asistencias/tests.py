@@ -17,7 +17,7 @@ from PIL import Image
 from .cuentas import emitir_acceso
 from .listas import extraer_lista_pdf, separar_nombre
 from .ciclos import crear_ciclo_y_promover
-from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grado, Grupo, Inscripcion, RegistroAsistencia, Tutor
+from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grado, Grupo, Inscripcion, NotificacionWhatsApp, RegistroAsistencia, Tutor
 
 
 class PrefecturaTests(TestCase):
@@ -165,6 +165,91 @@ class PrefecturaTests(TestCase):
         self.assertContains(profile, "Uno")
         self.assertContains(profile, "Dos")
         self.assertContains(profile, 'class="date-button')
+
+    @override_settings(
+        WHATSAPP_ENABLED=True,
+        WHATSAPP_ACCESS_TOKEN="token-prueba",
+        WHATSAPP_PHONE_NUMBER_ID="123456789",
+        WHATSAPP_TEMPLATE_NAME="aviso_asistencia_escolar",
+        WHATSAPP_TEMPLATE_LANGUAGE="es_MX",
+        WHATSAPP_API_VERSION="v26.0",
+        WHATSAPP_DEFAULT_COUNTRY_CODE="52",
+    )
+    def test_escaneo_envia_una_plantilla_a_padres_autorizados(self):
+        madre = Tutor.objects.create(
+            nombre="Maria", parentesco=Tutor.Parentesco.MADRE,
+            telefono_whatsapp="5551234567", recibe_notificaciones=True,
+        )
+        padre = Tutor.objects.create(
+            nombre="Pedro", parentesco=Tutor.Parentesco.PADRE,
+            telefono_whatsapp="5551234567", recibe_notificaciones=True,
+        )
+        sin_permiso = Tutor.objects.create(
+            nombre="Otra persona", telefono_whatsapp="5559876543",
+            recibe_notificaciones=False,
+        )
+        self.alumno.tutores.add(madre, padre, sin_permiso)
+        self.client.force_login(self.prefecto_1)
+        url = reverse("asistencias:registrar_prefecto")
+        payload = json.dumps({"codigo": self.alumno.codigo_qr})
+        with patch("asistencias.whatsapp.urlopen") as enviar:
+            enviar.return_value.__enter__.return_value = BytesIO(
+                b'{"messages": [{"id": "wamid.prueba"}]}'
+            )
+            with self.captureOnCommitCallbacks(execute=True):
+                self.assertEqual(self.client.post(url, payload, content_type="application/json").status_code, 200)
+            self.assertEqual(enviar.call_count, 1)
+            solicitud = enviar.call_args.args[0]
+            cuerpo = json.loads(solicitud.data)
+            self.assertEqual(cuerpo["to"], "525551234567")
+            self.assertEqual(cuerpo["template"]["name"], "aviso_asistencia_escolar")
+            self.assertEqual(cuerpo["template"]["components"][0]["parameters"][0]["text"], self.alumno.nombre_completo)
+            with self.captureOnCommitCallbacks(execute=True):
+                self.assertEqual(self.client.post(url, payload, content_type="application/json").json()["tipo"], "repetido")
+            self.assertEqual(enviar.call_count, 1)
+        aviso = NotificacionWhatsApp.objects.get(registro__alumno=self.alumno)
+        self.assertEqual(aviso.estado, NotificacionWhatsApp.Estado.ENVIADA)
+        self.assertEqual(aviso.respuesta_proveedor, "wamid.prueba")
+        self.assertIsNotNone(aviso.enviado_en)
+
+    @override_settings(
+        WHATSAPP_ENABLED=True,
+        WHATSAPP_ACCESS_TOKEN="token-prueba", WHATSAPP_PHONE_NUMBER_ID="123456789",
+        WHATSAPP_TEMPLATE_NAME="aviso_asistencia_escolar", WHATSAPP_API_VERSION="v26.0",
+        WHATSAPP_TEMPLATE_LANGUAGE="es_MX", WHATSAPP_DEFAULT_COUNTRY_CODE="52",
+    )
+    def test_fallo_de_meta_no_revierte_asistencia(self):
+        from urllib.error import HTTPError
+
+        tutor = Tutor.objects.create(
+            nombre="Maria", telefono_whatsapp="5551234567", recibe_notificaciones=True,
+        )
+        self.alumno.tutores.add(tutor)
+        self.client.force_login(self.prefecto_1)
+        with patch("asistencias.whatsapp.urlopen", side_effect=HTTPError("https://graph.facebook.com", 400, "", {}, None)):
+            with self.captureOnCommitCallbacks(execute=True):
+                respuesta = self.client.post(
+                    reverse("asistencias:registrar_prefecto"),
+                    json.dumps({"codigo": self.alumno.codigo_qr}),
+                    content_type="application/json",
+                )
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertTrue(RegistroAsistencia.objects.filter(alumno=self.alumno).exists())
+        self.assertEqual(NotificacionWhatsApp.objects.get(registro__alumno=self.alumno).estado,
+                         NotificacionWhatsApp.Estado.FALLIDA)
+
+    @override_settings(WHATSAPP_ENABLED=False)
+    def test_sin_configuracion_no_se_crean_avisos_antiguos(self):
+        tutor = Tutor.objects.create(
+            nombre="Maria", telefono_whatsapp="5551234567", recibe_notificaciones=True,
+        )
+        self.alumno.tutores.add(tutor)
+        self.client.force_login(self.prefecto_1)
+        self.assertEqual(self.client.post(
+            reverse("asistencias:registrar_prefecto"),
+            json.dumps({"codigo": self.alumno.codigo_qr}), content_type="application/json",
+        ).status_code, 200)
+        self.assertFalse(NotificacionWhatsApp.objects.filter(registro__alumno=self.alumno).exists())
 
     def test_vista_publica_sin_controles_y_manifest(self):
         profile_url = reverse("asistencias:perfil_alumno", args=[self.alumno.id])
@@ -350,6 +435,7 @@ class PrefecturaTests(TestCase):
             "informacion_medica": "Alergia", "contacto_emergencia_nombre": "Contacto",
             "contacto_emergencia_telefono": "5550011223",
             "madre_nombre": "Maria Lopez", "madre_telefono": "5551234567",
+            "madre_notificar": "on",
             "padre_nombre": "", "padre_telefono": "",
         })
         self.assertRedirects(response, reverse("asistencias:perfil_alumno", args=[self.alumno.pk]))
@@ -357,6 +443,7 @@ class PrefecturaTests(TestCase):
         self.assertEqual(self.alumno.nombres, "Ana Maria")
         self.assertEqual(self.alumno.tipo_sangre, "O+")
         self.assertTrue(self.alumno.tutores.filter(parentesco=Tutor.Parentesco.MADRE, nombre="Maria Lopez").exists())
+        self.assertTrue(self.alumno.tutores.get(parentesco=Tutor.Parentesco.MADRE).recibe_notificaciones)
 
     def test_foto_privada_y_visible_en_credencial(self):
         image = BytesIO()
@@ -525,11 +612,15 @@ class GestionEscolarTests(TestCase):
             "ciclo": self.ciclo.pk, "grado": self.grados[0].pk, "letra": "A",
             "matricula": "123456789", "nombres": "Ana", "apellido_paterno": "Lopez",
             "apellido_materno": "Martinez",
+            "madre_nombre": "Maria Lopez", "madre_telefono": "5551234567", "madre_notificar": "on",
+            "padre_nombre": "Pedro Lopez", "padre_telefono": "5559876543",
         })
         self.assertEqual(response.status_code, 200)
         alumno = Alumno.objects.get(matricula="123456789")
         self.assertEqual(alumno.grupo, self.grupos[0])
         self.assertEqual(Inscripcion.objects.get(alumno=alumno).grupo, self.grupos[0])
+        self.assertTrue(alumno.tutores.get(parentesco=Tutor.Parentesco.MADRE).recibe_notificaciones)
+        self.assertFalse(alumno.tutores.get(parentesco=Tutor.Parentesco.PADRE).recibe_notificaciones)
         self.assertTrue(alumno.cuenta.usuario.check_password(response.context["acceso"]["contrasena"]))
         self.assertIn("no-store", response.headers["Cache-Control"])
 

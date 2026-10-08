@@ -126,7 +126,7 @@ class Tutor(TimeStampedModel):
     )
     telefono_whatsapp = models.CharField(max_length=20)
     email = models.EmailField(blank=True)
-    recibe_notificaciones = models.BooleanField(default=True)
+    recibe_notificaciones = models.BooleanField(default=False)
     activo = models.BooleanField(default=True)
 
     class Meta:

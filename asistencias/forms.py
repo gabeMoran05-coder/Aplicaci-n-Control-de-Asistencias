@@ -81,6 +81,13 @@ class DestinoEscolarForm(forms.Form):
 
 
 class AlumnoAltaForm(DestinoEscolarForm, forms.ModelForm):
+    madre_nombre = forms.CharField(max_length=120, required=False, label="Nombre de la madre")
+    madre_telefono = forms.CharField(max_length=20, required=False, label="Telefono de la madre")
+    madre_notificar = forms.BooleanField(required=False, label="Autoriza avisos por WhatsApp")
+    padre_nombre = forms.CharField(max_length=120, required=False, label="Nombre del padre")
+    padre_telefono = forms.CharField(max_length=20, required=False, label="Telefono del padre")
+    padre_notificar = forms.BooleanField(required=False, label="Autoriza avisos por WhatsApp")
+
     class Meta:
         model = Alumno
         fields = ["matricula", "nombres", "apellido_paterno", "apellido_materno",
@@ -92,6 +99,15 @@ class AlumnoAltaForm(DestinoEscolarForm, forms.ModelForm):
         if foto and foto.size > 5 * 1024 * 1024:
             raise forms.ValidationError("La foto debe pesar menos de 5 MB.")
         return foto
+
+    def clean(self):
+        data = super().clean()
+        for parentesco in ("madre", "padre"):
+            if data.get(f"{parentesco}_nombre") and not data.get(f"{parentesco}_telefono"):
+                self.add_error(f"{parentesco}_telefono", "Captura un telefono para este tutor.")
+            if data.get(f"{parentesco}_telefono") and not data.get(f"{parentesco}_nombre"):
+                self.add_error(f"{parentesco}_nombre", "Captura el nombre de este tutor.")
+        return data
 
 
 class ListaPDFForm(DestinoEscolarForm):
@@ -140,8 +156,10 @@ class CicloNuevoForm(forms.Form):
 class AlumnoEditarForm(forms.ModelForm):
     madre_nombre = forms.CharField(max_length=120, required=False, label="Nombre de la madre")
     madre_telefono = forms.CharField(max_length=20, required=False, label="Telefono de la madre")
+    madre_notificar = forms.BooleanField(required=False, label="Autoriza avisos por WhatsApp")
     padre_nombre = forms.CharField(max_length=120, required=False, label="Nombre del padre")
     padre_telefono = forms.CharField(max_length=20, required=False, label="Telefono del padre")
+    padre_notificar = forms.BooleanField(required=False, label="Autoriza avisos por WhatsApp")
     quitar_foto = forms.BooleanField(required=False, label="Quitar foto actual")
 
     class Meta:
@@ -162,6 +180,7 @@ class AlumnoEditarForm(forms.ModelForm):
                 if tutor:
                     self.fields[f"{parentesco}_nombre"].initial = tutor.nombre
                     self.fields[f"{parentesco}_telefono"].initial = tutor.telefono_whatsapp
+                    self.fields[f"{parentesco}_notificar"].initial = tutor.recibe_notificaciones
 
     def clean_foto(self):
         foto = self.cleaned_data.get("foto")
