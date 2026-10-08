@@ -16,6 +16,13 @@
 .gestion-field input,.gestion-field select{width:100%;min-height:42px;padding:8px 11px;border:1px solid #c9d6dc;border-radius:7px;background:white;color:#17232b;font:inherit}
 .gestion-field input[type=file]{padding:8px;background:#fff}
 .gestion-field input:focus,.gestion-field select:focus{outline:2px solid #1684b5;outline-offset:1px}
+.gestion-phone-pair{display:grid;grid-template-columns:minmax(135px,42%) minmax(0,1fr);gap:8px;min-width:0}
+.gestion-phone-pair select{min-width:0;text-overflow:ellipsis}
+.guardian-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.guardian-panel{display:grid;align-content:start;gap:15px;min-width:0;padding:20px;border:1px solid #dce6e9;border-radius:9px;background:#f8fbfc}
+.guardian-panel h3{margin:0;font-size:15px;font-weight:600}
+.guardian-consent{display:flex;align-items:flex-start;gap:8px;color:#52636f;font-size:13px;line-height:1.4}
+.guardian-consent input{width:17px;height:17px;flex:none;margin:0;accent-color:#1684b5}
 .gestion-consent{align-content:end}.gestion-consent label{display:flex;align-items:center;gap:8px;min-height:42px;font-size:13px}.gestion-consent input[type=checkbox]{width:17px;min-height:17px;accent-color:#1684b5}
 .gestion-field .errorlist,.gestion-check .errorlist{margin:0;padding:0;list-style:none;color:#b53b3b;font-size:12px}
 .gestion-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
@@ -88,3 +95,5 @@
 .prefectos-dialog .gestion-actions{margin-top:24px}
 @media(max-width:760px){.gestion-heading{align-items:flex-start;flex-direction:column}.gestion-grid.three{grid-template-columns:1fr 1fr}}
 @media(max-width:550px){.gestion-grid,.gestion-grid.three,.gestion-password,.prefectos-fields{grid-template-columns:1fr}.prefectos-fields .gestion-field:last-child{grid-column:auto}.prefectos-dialog-heading,.prefectos-dialog .gestion-form{padding:16px}.gestion-promotion{grid-template-columns:repeat(3,minmax(0,1fr))}.gestion-actions{flex-wrap:wrap}.gestion-button{max-width:100%}.gestion-credentials dl{display:grid;gap:12px}}
+@media(max-width:650px){.guardian-grid{grid-template-columns:1fr}}
+@media(max-width:400px){.gestion-phone-pair{grid-template-columns:1fr}}

@@ -1,4 +1,5 @@
 {% load static %}
+{% load telefonos %}
 <!doctype html>
 <html lang="es-MX">
 <head>
@@ -40,7 +41,7 @@
                     <span class="eyebrow">Datos del estudiante y emergencia</span>
                     <div class="back-row"><span>Nombre</span><strong>{{ alumno.nombre_completo }}</strong></div>
                     <div class="back-pair"><div class="back-row"><span>Grupo</span><strong>{{ alumno.grado_nombre }} {{ alumno.grupo.nombre }}</strong></div><div class="back-row"><span>Sangre</span><strong>{{ alumno.tipo_sangre|default:'No registrada' }}</strong></div></div>
-                    <div class="back-row"><span>Contacto de emergencia</span><strong>{{ alumno.contacto_emergencia_nombre|default:'No registrado' }}{% if alumno.contacto_emergencia_telefono %} · {{ alumno.contacto_emergencia_telefono }}{% endif %}</strong></div>
+                    <div class="back-row"><span>Contacto de emergencia</span><strong>{{ alumno.contacto_emergencia_nombre|default:'No registrado' }}{% if alumno.contacto_emergencia_telefono %} · {{ alumno.contacto_emergencia_telefono|telefono_visible }}{% endif %}</strong></div>
                     <div class="back-row"><span>Madre, padre o tutores</span><strong>{% for tutor in tutores %}{{ tutor.nombre }}{% if not forloop.last %} · {% endif %}{% empty %}No registrados{% endfor %}</strong></div>
                     <div class="back-row"><span>Fecha de emisión</span><strong>{{ hoy|date:'d/m/Y' }}</strong></div>
                 </div>

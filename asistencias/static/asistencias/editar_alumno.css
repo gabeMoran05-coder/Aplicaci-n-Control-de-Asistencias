@@ -17,6 +17,8 @@
 .edit-field textarea{min-height:82px;resize:vertical}
 .edit-field input:hover,.edit-field select:hover,.edit-field textarea:hover{border-color:#94b5c0}
 .edit-field input:focus,.edit-field select:focus,.edit-field textarea:focus{border-color:#1684b5;outline:3px solid #1684b52b}
+.phone-pair{display:grid;grid-template-columns:minmax(135px,42%) minmax(0,1fr);gap:8px;min-width:0}
+.phone-pair select{min-width:0;text-overflow:ellipsis}
 .field-wide{grid-column:1/-1}
 .photo-content{display:flex;align-items:center;gap:24px;min-width:0}
 .photo-frame{display:grid;place-items:center;width:132px;height:164px;flex:none;overflow:hidden;border:1px dashed #b4cbd3;border-radius:10px;background:#f2f7f8;color:#7b8e96;font-size:13px}
@@ -45,3 +47,4 @@
 @media(max-width:900px){.edit-section{grid-template-columns:1fr;gap:18px}.edit-form{padding:0 24px 6px}.edit-section{padding:25px 0}}
 @media(max-width:620px){.dashboard .student-edit{margin-bottom:20px}.edit-head{padding:3px 4px 20px}.dashboard .edit-head h1{font-size:26px}.edit-form{padding:0 17px 4px;border-radius:9px}.edit-grid,.family-grid{grid-template-columns:1fr;gap:16px}.field-wide{grid-column:auto}.photo-content{align-items:flex-start;gap:16px}.photo-frame{width:100px;height:126px}.photo-buttons{gap:7px}.edit-button{white-space:normal;text-align:center}.family-member{padding:17px}.form-actions{display:grid;grid-template-columns:1fr 1fr}}
 @media(max-width:410px){.photo-content{flex-wrap:wrap}.photo-controls{width:100%}}
+@media(max-width:480px){.phone-pair{grid-template-columns:1fr}}

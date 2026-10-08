@@ -60,7 +60,7 @@
                     <div class="section-heading"><span class="section-number">03</span><h2 id="emergency-title">Emergencia y salud</h2></div>
                     <div class="edit-grid">
                         <div class="edit-field"><label for="{{ form.contacto_emergencia_nombre.id_for_label }}">{{ form.contacto_emergencia_nombre.label }}</label>{{ form.contacto_emergencia_nombre }}{{ form.contacto_emergencia_nombre.errors }}</div>
-                        <div class="edit-field"><label for="{{ form.contacto_emergencia_telefono.id_for_label }}">{{ form.contacto_emergencia_telefono.label }}</label>{{ form.contacto_emergencia_telefono }}{{ form.contacto_emergencia_telefono.errors }}</div>
+                        <div class="edit-field"><label for="{{ form.contacto_emergencia_telefono.id_for_label }}">{{ form.contacto_emergencia_telefono.label }}</label><div class="phone-pair">{{ form.emergencia_pais }}{{ form.contacto_emergencia_telefono }}</div>{{ form.emergencia_pais.errors }}{{ form.contacto_emergencia_telefono.errors }}</div>
                         <div class="edit-field field-wide"><label for="{{ form.informacion_medica.id_for_label }}">{{ form.informacion_medica.label }}</label>{{ form.informacion_medica }}{{ form.informacion_medica.errors }}</div>
                     </div>
                 </section>
@@ -71,13 +71,13 @@
                         <div class="family-member">
                             <h3>Madre</h3>
                             <div class="edit-field"><label for="{{ form.madre_nombre.id_for_label }}">{{ form.madre_nombre.label }}</label>{{ form.madre_nombre }}{{ form.madre_nombre.errors }}</div>
-                            <div class="edit-field"><label for="{{ form.madre_telefono.id_for_label }}">{{ form.madre_telefono.label }}</label>{{ form.madre_telefono }}{{ form.madre_telefono.errors }}</div>
+                            <div class="edit-field"><label for="{{ form.madre_telefono.id_for_label }}">{{ form.madre_telefono.label }}</label><div class="phone-pair">{{ form.madre_pais }}{{ form.madre_telefono }}</div>{{ form.madre_pais.errors }}{{ form.madre_telefono.errors }}</div>
                             <label class="notification-consent">{{ form.madre_notificar }} <span>{{ form.madre_notificar.label }}</span></label>{{ form.madre_notificar.errors }}
                         </div>
                         <div class="family-member">
                             <h3>Padre</h3>
                             <div class="edit-field"><label for="{{ form.padre_nombre.id_for_label }}">{{ form.padre_nombre.label }}</label>{{ form.padre_nombre }}{{ form.padre_nombre.errors }}</div>
-                            <div class="edit-field"><label for="{{ form.padre_telefono.id_for_label }}">{{ form.padre_telefono.label }}</label>{{ form.padre_telefono }}{{ form.padre_telefono.errors }}</div>
+                            <div class="edit-field"><label for="{{ form.padre_telefono.id_for_label }}">{{ form.padre_telefono.label }}</label><div class="phone-pair">{{ form.padre_pais }}{{ form.padre_telefono }}</div>{{ form.padre_pais.errors }}{{ form.padre_telefono.errors }}</div>
                             <label class="notification-consent">{{ form.padre_notificar }} <span>{{ form.padre_notificar.label }}</span></label>{{ form.padre_notificar.errors }}
                         </div>
                     </div>
@@ -90,5 +90,5 @@
             </form>
         </main>
     </div>
-</div><script src="{% static 'asistencias/editar_alumno.js' %}" defer></script>
+</div><script src="{% static 'asistencias/telefonos.js' %}" defer></script><script src="{% static 'asistencias/editar_alumno.js' %}" defer></script>
 </body></html>

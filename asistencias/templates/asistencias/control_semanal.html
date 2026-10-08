@@ -1,4 +1,5 @@
 ﻿<!doctype html>
+{% load telefonos %}
 <html lang="es-MX">
 <head>
     <meta charset="utf-8">
@@ -38,7 +39,7 @@
             <td data-value="{{ alumno.grupo.grado.orden }}"><span class="pill grade grade-{{ alumno.grupo.grado.orden }}">{{ alumno.grado_nombre }}</span></td>
             <td data-value="{{ alumno.grupo.nombre }}"><span class="pill group">{{ alumno.grupo.nombre }}</span></td>
             <td data-value="{% if alumno.edad %}{{ alumno.edad }}{% endif %}">{% if alumno.edad %}<span class="pill age">{{ alumno.edad }} años</span>{% else %}<span class="muted">Sin fecha</span>{% endif %}</td>
-            <td data-value="{{ alumno.contacto_emergencia_nombre }}">{% if alumno.contacto_emergencia_nombre %}<strong>{{ alumno.contacto_emergencia_nombre }}</strong><span class="muted">{{ alumno.contacto_emergencia_telefono }}</span>{% else %}<span class="muted">Sin capturar</span>{% endif %}</td>
+            <td data-value="{{ alumno.contacto_emergencia_nombre }}">{% if alumno.contacto_emergencia_nombre %}<strong>{{ alumno.contacto_emergencia_nombre }}</strong><span class="muted">{{ alumno.contacto_emergencia_telefono|telefono_visible }}</span>{% else %}<span class="muted">Sin capturar</span>{% endif %}</td>
             <td><a class="link" href="{% url 'asistencias:perfil_alumno' alumno.id %}">Ver alumno</a></td>
         </tr>{% empty %}<tr><td colspan="7"><div class="empty">No hay alumnos con esos filtros.</div></td></tr>{% endfor %}</tbody></table></div></section>
 </main></div></div><script src="{% static 'asistencias/directorio.js' %}" defer></script>

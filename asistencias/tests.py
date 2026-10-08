@@ -17,8 +17,11 @@ from django.utils import timezone
 from PIL import Image
 
 from .cuentas import emitir_acceso
+from .forms import AlumnoEditarForm
 from .listas import extraer_lista_pdf, separar_nombre
 from .ciclos import crear_ciclo_y_promover
+from .telefonos import opciones_paises, telefono_para_formulario, telefono_visible
+from .whatsapp import normalizar_telefono as telefono_whatsapp
 from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grado, Grupo, Inscripcion, NotificacionWhatsApp, RegistroAsistencia, Tutor
 
 
@@ -402,7 +405,7 @@ class PrefecturaTests(TestCase):
         self.assertContains(credencial, "asistencias/escuela-fmptm")
         self.assertContains(credencial, "asistencias/colima-escudo")
         self.assertContains(credencial, "Contacto Privado")
-        self.assertContains(credencial, "5550001234")
+        self.assertContains(credencial, "+52 555-000-1234")
         self.assertContains(credencial, 'class="card front grade-1"')
         self.assertContains(credencial, 'class="card back grade-1"')
 
@@ -435,6 +438,8 @@ class PrefecturaTests(TestCase):
         self.client.force_login(self.director)
         formulario = self.client.get(ruta)
         self.assertContains(formulario, 'class="family-grid"')
+        self.assertContains(formulario, 'data-phone-country')
+        self.assertContains(formulario, '+52')
         self.assertContains(formulario, 'name="madre_notificar"')
         self.assertContains(formulario, 'name="padre_notificar"')
         self.assertContains(formulario, 'id="camera-input"')
@@ -467,8 +472,47 @@ class PrefecturaTests(TestCase):
         })
         self.assertEqual(respuesta.status_code, 200)
         self.assertContains(respuesta, "Escribe el nombre, no el numero de telefono.")
-        self.assertContains(respuesta, "Escribe un telefono de 10 a 15 digitos.")
+        self.assertContains(respuesta, "El telefono solo puede contener numeros y separadores.")
         self.assertFalse(self.alumno.tutores.filter(parentesco=Tutor.Parentesco.PADRE).exists())
+
+    def test_telefonos_muestran_lada_y_formato_nacional(self):
+        self.assertGreaterEqual(len(opciones_paises()), 200)
+        self.assertEqual(telefono_para_formulario("+523141810105"), ("MX", "314-181-0105"))
+        self.assertEqual(telefono_visible("+523141810105"), "+52 314-181-0105")
+        self.assertEqual(telefono_para_formulario("+16502532222"), ("US", "(650) 253-2222"))
+        self.assertEqual(telefono_whatsapp("+16502532222"), "16502532222")
+
+    def test_edicion_guarda_lada_internacional_y_rechaza_letras(self):
+        self.client.force_login(self.director)
+        url = reverse("asistencias:editar_alumno", args=[self.alumno.pk])
+        datos = {
+            "nombres": self.alumno.nombres,
+            "apellido_paterno": self.alumno.apellido_paterno,
+            "matricula": self.alumno.matricula,
+            "grupo": self.alumno.grupo_id,
+            "padre_nombre": "Pedro Lopez",
+            "padre_pais": "US",
+            "padre_telefono": "650-253-2222",
+            "emergencia_pais": "US",
+            "contacto_emergencia_telefono": "202-555-0123",
+        }
+        self.assertRedirects(self.client.post(url, datos), reverse("asistencias:perfil_alumno", args=[self.alumno.pk]))
+        padre = self.alumno.tutores.get(parentesco=Tutor.Parentesco.PADRE)
+        self.assertEqual(padre.telefono_whatsapp, "+16502532222")
+        self.alumno.refresh_from_db()
+        self.assertEqual(self.alumno.contacto_emergencia_telefono, "+12025550123")
+        formulario = AlumnoEditarForm(instance=self.alumno)
+        self.assertEqual(formulario["padre_pais"].value(), "US")
+        self.assertEqual(formulario["padre_telefono"].value(), "(650) 253-2222")
+        self.assertEqual(formulario["emergencia_pais"].value(), "US")
+        self.assertEqual(formulario["contacto_emergencia_telefono"].value(), "(202) 555-0123")
+        datos["padre_telefono"] = "abc6502532222"
+        respuesta = self.client.post(url, datos)
+        self.assertContains(respuesta, "El telefono solo puede contener numeros y separadores.")
+        self.assertEqual(self.alumno.tutores.get(parentesco=Tutor.Parentesco.PADRE).telefono_whatsapp, "+16502532222")
+        datos["padre_telefono"] = "+16502532222"
+        datos["padre_pais"] = "MX"
+        self.assertContains(self.client.post(url, datos), "Escribe un numero de telefono valido para el pais seleccionado.")
 
     def test_migracion_corrige_solo_tutores_invertidos(self):
         invertido = Tutor.objects.create(
@@ -654,7 +698,7 @@ class GestionEscolarTests(TestCase):
             "matricula": "123456789", "nombres": "Ana", "apellido_paterno": "Lopez",
             "apellido_materno": "Martinez",
             "madre_nombre": "Maria Lopez", "madre_telefono": "5551234567", "madre_notificar": "on",
-            "padre_nombre": "Pedro Lopez", "padre_telefono": "5559876543",
+            "padre_nombre": "Pedro Lopez", "padre_pais": "US", "padre_telefono": "6502532222",
         })
         self.assertEqual(response.status_code, 200)
         alumno = Alumno.objects.get(matricula="123456789")
@@ -662,6 +706,7 @@ class GestionEscolarTests(TestCase):
         self.assertEqual(Inscripcion.objects.get(alumno=alumno).grupo, self.grupos[0])
         self.assertTrue(alumno.tutores.get(parentesco=Tutor.Parentesco.MADRE).recibe_notificaciones)
         self.assertFalse(alumno.tutores.get(parentesco=Tutor.Parentesco.PADRE).recibe_notificaciones)
+        self.assertEqual(alumno.tutores.get(parentesco=Tutor.Parentesco.PADRE).telefono_whatsapp, "+16502532222")
         self.assertTrue(alumno.cuenta.usuario.check_password(response.context["acceso"]["contrasena"]))
         self.assertIn("no-store", response.headers["Cache-Control"])
 

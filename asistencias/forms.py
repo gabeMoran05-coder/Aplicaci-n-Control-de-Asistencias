@@ -1,11 +1,10 @@
 from django import forms
-import re
-
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import Alumno, CicloEscolar, Grado, Grupo, Tutor
+from .telefonos import normalizar_telefono, opciones_paises, telefono_para_formulario
 
 
 def validar_datos_tutores(formulario, data):
@@ -18,9 +17,44 @@ def validar_datos_tutores(formulario, data):
             formulario.add_error(f"{parentesco}_nombre", "Captura el nombre de este tutor.")
         if nombre and not any(letra.isalpha() for letra in nombre):
             formulario.add_error(f"{parentesco}_nombre", "Escribe el nombre, no el numero de telefono.")
-        if telefono and (not re.fullmatch(r"[+\d\s().-]+", telefono)
-                         or not 10 <= len(re.sub(r"\D", "", telefono)) <= 15):
-            formulario.add_error(f"{parentesco}_telefono", "Escribe un telefono de 10 a 15 digitos.")
+        if telefono:
+            try:
+                data[f"{parentesco}_telefono"] = normalizar_telefono(
+                    telefono, data.get(f"{parentesco}_pais") or "MX"
+                )
+            except ValueError as error:
+                formulario.add_error(f"{parentesco}_telefono", str(error))
+    return data
+
+
+def configurar_campos_telefono(formulario, alumno=None):
+    for campo in ("madre", "padre", "emergencia"):
+        formulario.fields[f"{campo}_pais"].choices = opciones_paises()
+        formulario.fields[f"{campo}_pais"].initial = "MX"
+        nombre_campo = "contacto_emergencia_telefono" if campo == "emergencia" else f"{campo}_telefono"
+        formulario.fields[f"{campo}_pais"].widget.attrs.update({
+            "data-phone-country": "", "data-phone-target": f"id_{nombre_campo}",
+            "aria-label": formulario.fields[f"{campo}_pais"].label,
+        })
+        formulario.fields[nombre_campo].widget.attrs.update({
+            "inputmode": "tel", "autocomplete": "tel-national", "data-phone-input": "",
+            "placeholder": "314-181-0105",
+        })
+    if alumno and alumno.pk and alumno.contacto_emergencia_telefono:
+        region, telefono = telefono_para_formulario(alumno.contacto_emergencia_telefono)
+        formulario.fields["emergencia_pais"].initial = region
+        formulario.initial["contacto_emergencia_telefono"] = telefono
+
+
+def validar_telefono_emergencia(formulario, data):
+    telefono = (data.get("contacto_emergencia_telefono") or "").strip()
+    if telefono:
+        try:
+            data["contacto_emergencia_telefono"] = normalizar_telefono(
+                telefono, data.get("emergencia_pais") or "MX"
+            )
+        except ValueError as error:
+            formulario.add_error("contacto_emergencia_telefono", str(error))
     return data
 
 
@@ -100,17 +134,25 @@ class DestinoEscolarForm(forms.Form):
 
 class AlumnoAltaForm(DestinoEscolarForm, forms.ModelForm):
     madre_nombre = forms.CharField(max_length=120, required=False, label="Nombre de la madre")
-    madre_telefono = forms.CharField(max_length=20, required=False, label="Telefono de la madre")
+    madre_pais = forms.ChoiceField(required=False, label="País de la madre")
+    madre_telefono = forms.CharField(max_length=32, required=False, label="Telefono de la madre")
     madre_notificar = forms.BooleanField(required=False, label="Autoriza avisos por WhatsApp")
     padre_nombre = forms.CharField(max_length=120, required=False, label="Nombre del padre")
-    padre_telefono = forms.CharField(max_length=20, required=False, label="Telefono del padre")
+    padre_pais = forms.ChoiceField(required=False, label="País del padre")
+    padre_telefono = forms.CharField(max_length=32, required=False, label="Telefono del padre")
     padre_notificar = forms.BooleanField(required=False, label="Autoriza avisos por WhatsApp")
+    emergencia_pais = forms.ChoiceField(required=False, label="País del contacto de emergencia")
+    contacto_emergencia_telefono = forms.CharField(max_length=32, required=False, label="Telefono de emergencia")
 
     class Meta:
         model = Alumno
         fields = ["matricula", "nombres", "apellido_paterno", "apellido_materno",
                   "fecha_nacimiento", "foto", "contacto_emergencia_nombre", "contacto_emergencia_telefono"]
         widgets = {"fecha_nacimiento": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        configurar_campos_telefono(self)
 
     def clean_foto(self):
         foto = self.cleaned_data.get("foto")
@@ -120,7 +162,8 @@ class AlumnoAltaForm(DestinoEscolarForm, forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        return validar_datos_tutores(self, data)
+        validar_datos_tutores(self, data)
+        return validar_telefono_emergencia(self, data)
 
 
 class ListaPDFForm(DestinoEscolarForm):
@@ -168,11 +211,15 @@ class CicloNuevoForm(forms.Form):
 
 class AlumnoEditarForm(forms.ModelForm):
     madre_nombre = forms.CharField(max_length=120, required=False, label="Nombre de la madre")
-    madre_telefono = forms.CharField(max_length=20, required=False, label="Telefono de la madre")
+    madre_pais = forms.ChoiceField(required=False, label="País de la madre")
+    madre_telefono = forms.CharField(max_length=32, required=False, label="Telefono de la madre")
     madre_notificar = forms.BooleanField(required=False, label="Autoriza avisos por WhatsApp")
     padre_nombre = forms.CharField(max_length=120, required=False, label="Nombre del padre")
-    padre_telefono = forms.CharField(max_length=20, required=False, label="Telefono del padre")
+    padre_pais = forms.ChoiceField(required=False, label="País del padre")
+    padre_telefono = forms.CharField(max_length=32, required=False, label="Telefono del padre")
     padre_notificar = forms.BooleanField(required=False, label="Autoriza avisos por WhatsApp")
+    emergencia_pais = forms.ChoiceField(required=False, label="País del contacto de emergencia")
+    contacto_emergencia_telefono = forms.CharField(max_length=32, required=False, label="Telefono de emergencia")
     quitar_foto = forms.BooleanField(required=False, label="Quitar foto actual")
 
     class Meta:
@@ -185,6 +232,7 @@ class AlumnoEditarForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        configurar_campos_telefono(self, self.instance)
         self.fields["grupo"].queryset = Grupo.objects.filter(activo=True).select_related("grado").order_by("grado__orden", "nombre")
         self.fields["fecha_nacimiento"].input_formats = ["%Y-%m-%d"]
         if self.instance.pk:
@@ -192,7 +240,9 @@ class AlumnoEditarForm(forms.ModelForm):
                 tutor = self.instance.tutores.filter(parentesco=parentesco, activo=True).first()
                 if tutor:
                     self.fields[f"{parentesco}_nombre"].initial = tutor.nombre
-                    self.fields[f"{parentesco}_telefono"].initial = tutor.telefono_whatsapp
+                    region, telefono = telefono_para_formulario(tutor.telefono_whatsapp)
+                    self.fields[f"{parentesco}_pais"].initial = region
+                    self.fields[f"{parentesco}_telefono"].initial = telefono
                     self.fields[f"{parentesco}_notificar"].initial = tutor.recibe_notificaciones
 
     def clean_foto(self):
@@ -206,7 +256,8 @@ class AlumnoEditarForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        return validar_datos_tutores(self, data)
+        validar_datos_tutores(self, data)
+        return validar_telefono_emergencia(self, data)
 
 
 class EventoEscolarForm(forms.Form):
