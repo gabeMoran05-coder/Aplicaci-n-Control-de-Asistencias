@@ -63,6 +63,27 @@
 .gestion-password .gestion-field>div>div{display:flex;align-items:center;gap:8px}
 .gestion-password .gestion-field input[type=radio]{width:16px;min-height:16px;accent-color:#1684b5}
 .gestion-password .gestion-field label{font-size:14px;font-weight:400;color:#17232b}
+.gestion-password .gestion-field[hidden]{display:none}
+.gestion-password:has(.gestion-field[hidden]){grid-template-columns:1fr}
 .gestion-password small{color:#62727d}
+.prefectos-heading{align-items:center;margin-bottom:14px}
+.prefectos-section{padding-top:18px}
+.prefectos-section-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.prefectos-section-heading h2{margin:0}
+.prefectos-empty{padding:52px 20px;text-align:center;border:1px solid #d7e1e6;background:#fff}
+.prefectos-empty strong{font-size:17px;font-weight:600}
+.prefectos-empty p{margin:8px 0 19px;color:#62727d}
+.prefectos-dialog{width:min(580px,calc(100% - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #c9d6dc;border-radius:6px;background:#fff;color:#17232b;box-shadow:0 24px 70px #07171b55;overflow:auto}
+.prefectos-dialog::backdrop{background:#07171b99}
+.prefectos-dialog-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:20px 22px;border-bottom:1px solid #d7e1e6}
+.prefectos-dialog-heading h2{margin:0;font-size:20px;font-weight:600}
+.prefectos-dialog-heading p{margin:4px 0 0;color:#62727d}
+.prefectos-close{width:30px;height:30px;padding:0;border:0;border-radius:4px;background:transparent;color:#52636f;font-size:24px;line-height:1;cursor:pointer}
+.prefectos-close:hover{background:#edf3f5}
+.prefectos-dialog .gestion-form{padding:20px 22px 22px}
+.prefectos-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.prefectos-fields .gestion-field:last-child{grid-column:1/-1}
+.prefectos-dialog .gestion-password{grid-template-columns:1fr;gap:15px;margin-top:18px}
+.prefectos-dialog .gestion-actions{margin-top:24px}
 @media(max-width:760px){.gestion-heading{align-items:flex-start;flex-direction:column}.gestion-grid.three{grid-template-columns:1fr 1fr}}
-@media(max-width:550px){.gestion-grid,.gestion-grid.three,.gestion-password{grid-template-columns:1fr}.gestion-promotion{grid-template-columns:repeat(3,minmax(0,1fr))}.gestion-actions{flex-wrap:wrap}.gestion-button{max-width:100%}.gestion-credentials dl{display:grid;gap:12px}}
+@media(max-width:550px){.gestion-grid,.gestion-grid.three,.gestion-password,.prefectos-fields{grid-template-columns:1fr}.prefectos-fields .gestion-field:last-child{grid-column:auto}.prefectos-dialog-heading,.prefectos-dialog .gestion-form{padding:16px}.gestion-promotion{grid-template-columns:repeat(3,minmax(0,1fr))}.gestion-actions{flex-wrap:wrap}.gestion-button{max-width:100%}.gestion-credentials dl{display:grid;gap:12px}}

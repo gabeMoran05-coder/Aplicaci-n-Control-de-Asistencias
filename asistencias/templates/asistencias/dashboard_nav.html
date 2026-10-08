@@ -2,8 +2,10 @@
     <a class="brand" href="{% url 'asistencias:control' %}"><span class="mark" aria-hidden="true">&#10003;</span>AsisteEscolar</a>
     <nav class="nav" aria-label="Navegacion principal">
         <a{% if active_section == 'alumnos' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:control' %}">Alumnos</a>
+        <a{% if active_section == 'importar' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:importar_lista' %}">Importar listas</a>
         <a{% if active_section == 'ciclos' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:ciclos_escolares' %}">Ciclos</a>
         <a{% if active_section == 'calendario' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:calendario_escolar' %}">Calendario</a>
+        <a{% if active_section == 'reporte' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:reporte_ausencias' %}">Ausencias</a>
         <a{% if active_section == 'cuentas' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:cuentas_alumnos' %}">Cuentas</a>
         <a{% if active_section == 'prefectos' %} class="active" aria-current="page"{% endif %} href="{% url 'asistencias:gestionar_prefectos' %}">Prefectos</a>
         <a href="{% url 'asistencias:prefectos' %}">Escanear</a>

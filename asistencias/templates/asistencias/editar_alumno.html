@@ -9,7 +9,7 @@
 </head>
 <body class="dashboard"><div class="app-frame">
 {% include 'asistencias/dashboard_nav.html' with active_section='alumnos' %}
-<div class="app-body">{% include 'asistencias/dashboard_sidebar.html' with active_section='alumnos' %}
+<div class="app-body">
 <main class="student-edit">
     <header class="edit-head"><div><a href="{% url 'asistencias:perfil_alumno' alumno.pk %}">Volver al perfil</a><h1>Editar alumno</h1><p>{{ alumno.nombre_completo }}</p></div></header>
     <form method="post" enctype="multipart/form-data" class="edit-form">

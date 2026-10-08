@@ -299,7 +299,7 @@ class PrefecturaTests(TestCase):
             pagina = self.client.get(reverse(f"asistencias:{nombre}"))
             self.assertEqual(pagina.status_code, 200)
             self.assertContains(pagina, "asistencias/dashboard")
-            self.assertContains(pagina, 'class="dashboard-sidebar"')
+            self.assertNotContains(pagina, 'class="dashboard-sidebar"')
             self.assertContains(pagina, reverse("asistencias:direccion_logout"))
         perfil = self.client.get(reverse("asistencias:perfil_alumno", args=[self.alumno.pk]))
         self.assertContains(perfil, reverse("asistencias:qr_alumno", args=[self.alumno.pk]))
@@ -672,15 +672,16 @@ class GestionPrefectosTests(TestCase):
         response = self.client.post(url, self.datos(username="PREFECTO-NUEVO"))
         self.assertContains(response, "Ese usuario ya existe")
 
-    def test_cupo_desactivacion_y_reactivacion(self):
+    def test_prefectos_sin_limite_y_reactivacion(self):
         self.client.force_login(self.director)
         url = reverse("asistencias:gestionar_prefectos")
         for indice in range(3):
             self.client.post(url, self.datos(username=f"prefecto-{indice}"))
         self.assertEqual(User.objects.filter(groups=self.grupo_prefectos, is_active=True).count(), 3)
         response = self.client.post(url, self.datos(username="prefecto-cuarto"))
-        self.assertContains(response, "Ya hay tres prefectos activos")
-        self.assertFalse(User.objects.filter(username="prefecto-cuarto").exists())
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(User.objects.filter(username="prefecto-cuarto").exists())
+        self.assertEqual(User.objects.filter(groups=self.grupo_prefectos, is_active=True).count(), 4)
 
         primero = User.objects.get(username="prefecto-0")
         estado = reverse("asistencias:cambiar_estado_prefecto", args=[primero.pk])
@@ -689,8 +690,14 @@ class GestionPrefectosTests(TestCase):
         primero.refresh_from_db()
         self.assertFalse(primero.is_active)
         self.assertFalse(self.client.login(username=primero.username, password="clave-inexistente"))
-        self.client.post(url, self.datos(username="prefecto-cuarto"))
+        self.client.force_login(self.director)
         self.client.post(estado, {"accion": "activar"})
         primero.refresh_from_db()
-        self.assertFalse(primero.is_active)
-        self.assertEqual(User.objects.filter(groups=self.grupo_prefectos, is_active=True).count(), 3)
+        self.assertTrue(primero.is_active)
+        self.assertEqual(User.objects.filter(groups=self.grupo_prefectos, is_active=True).count(), 4)
+
+    def test_panel_sin_menu_lateral(self):
+        self.client.force_login(self.director)
+        response = self.client.get(reverse("asistencias:gestionar_prefectos"))
+        self.assertContains(response, "Importar listas")
+        self.assertNotContains(response, 'class="dashboard-sidebar"')

@@ -28,7 +28,7 @@
 </head>
 <body class="dashboard"><div class="app-frame">
 {% include 'asistencias/dashboard_nav.html' with active_section='calendario' %}
-<div class="app-body">{% include 'asistencias/dashboard_sidebar.html' with active_section='calendario' %}
+<div class="app-body">
 <main class="wrap">
 <header class="heading"><div><h1>Calendario escolar</h1><p>Cierres y actividades del ciclo {{ ciclo.nombre }}</p></div><span class="cycle">{{ ciclo.fecha_inicio|date:'j M Y' }} - {{ ciclo.fecha_fin|date:'j M Y' }}</span></header>
 <div class="director-month-layout"><section class="director-month" aria-label="Fechas del mes">

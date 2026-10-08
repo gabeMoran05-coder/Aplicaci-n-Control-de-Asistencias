@@ -325,20 +325,17 @@ def gestionar_prefectos(request):
     acceso = None
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
-            grupo = Group.objects.select_for_update().get(name=PREFECTOS_GROUP)
-            if get_user_model().objects.filter(groups=grupo, is_active=True).count() >= 3:
-                form.add_error(None, "Ya hay tres prefectos activos. Desactiva uno antes de agregar otro.")
-            else:
-                prefecto = form.save(commit=False)
-                contrasena = (secrets.token_urlsafe(18) if form.cleaned_data["metodo_contrasena"] == "generar"
-                              else form.cleaned_data["contrasena_manual"])
-                prefecto.set_password(contrasena)
-                prefecto.save()
-                prefecto.groups.add(grupo)
-                if form.cleaned_data["metodo_contrasena"] == "generar":
-                    acceso = {"usuario": prefecto.username, "contrasena": contrasena}
-                messages.success(request, f"Prefecto {prefecto.get_full_name()} agregado.")
-                form = PrefectoCuentaForm()
+            grupo = Group.objects.get(name=PREFECTOS_GROUP)
+            prefecto = form.save(commit=False)
+            contrasena = (secrets.token_urlsafe(18) if form.cleaned_data["metodo_contrasena"] == "generar"
+                          else form.cleaned_data["contrasena_manual"])
+            prefecto.set_password(contrasena)
+            prefecto.save()
+            prefecto.groups.add(grupo)
+            if form.cleaned_data["metodo_contrasena"] == "generar":
+                acceso = {"usuario": prefecto.username, "contrasena": contrasena}
+            messages.success(request, f"Prefecto {prefecto.get_full_name()} agregado.")
+            form = PrefectoCuentaForm()
     return render(request, "asistencias/gestionar_prefectos.html", {
         "form": form, "prefectos": _prefectos_gestionables().annotate(
             total_registros=Count("registros_asistencia", distinct=True)
@@ -386,14 +383,9 @@ def cambiar_estado_prefecto(request, prefecto_id):
             pk=prefecto_id,
         )
         activar = request.POST.get("accion") == "activar"
-        if activar and not prefecto.is_active and get_user_model().objects.filter(
-            groups=grupo, is_active=True
-        ).count() >= 3:
-            messages.error(request, "Ya hay tres prefectos activos. Desactiva uno primero.")
-        else:
-            prefecto.is_active = activar
-            prefecto.save(update_fields=["is_active"])
-            messages.success(request, "Acceso activado." if activar else "Acceso desactivado.")
+        prefecto.is_active = activar
+        prefecto.save(update_fields=["is_active"])
+        messages.success(request, "Acceso activado." if activar else "Acceso desactivado.")
     return redirect("asistencias:gestionar_prefectos")
 
 

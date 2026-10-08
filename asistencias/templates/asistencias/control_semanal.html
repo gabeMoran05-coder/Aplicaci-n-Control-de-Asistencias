@@ -19,7 +19,7 @@
 </head>
 <body class="dashboard"><div class="app-frame">
 {% include 'asistencias/dashboard_nav.html' with active_section='alumnos' %}
-<div class="app-body">{% include 'asistencias/dashboard_sidebar.html' with active_section='alumnos' %}
+<div class="app-body">
 <main class="wrap">
     <section class="head"><div><h1>Alumnos</h1><div class="subtitle">Listado general ordenado alfabeticamente por apellidos.</div></div><div class="actions">{% if can_view_reports %}<a class="button" href="{% url 'asistencias:reporte_ausencias' %}">Reporte de ausencias</a>{% endif %}<a class="button" href="{% url 'asistencias:importar_lista' %}">Importar lista</a><a class="button primary" href="{% url 'asistencias:agregar_alumno' %}">Agregar alumno</a></div></section>
     {% if messages %}{% for message in messages %}<div class="directory-notice" role="status">{{ message }}</div>{% endfor %}{% endif %}

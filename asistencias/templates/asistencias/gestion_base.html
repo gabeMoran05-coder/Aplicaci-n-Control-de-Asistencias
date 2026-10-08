@@ -11,10 +11,9 @@
 <body class="dashboard"><div class="app-frame">
     {% include 'asistencias/dashboard_nav.html' with active_section=active_section %}
     <div class="app-body">
-        {% include 'asistencias/dashboard_sidebar.html' with active_section=active_section %}
         <main class="wrap gestion-main">
             {% block content %}{% endblock %}
         </main>
     </div>
-</div></body>
+</div>{% block scripts %}{% endblock %}</body>
 </html>
