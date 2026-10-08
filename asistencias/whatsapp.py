@@ -71,9 +71,9 @@ def despachar_notificaciones(ids):
                     "components": [{
                         "type": "body",
                         "parameters": [
+                            {"type": "text", "text": notificacion.tutor.nombre},
                             {"type": "text", "text": registro.alumno.nombre_completo},
                             {"type": "text", "text": registro.fecha.strftime("%d/%m/%Y")},
-                            {"type": "text", "text": registro.hora.strftime("%H:%M")},
                         ],
                     }],
                 },

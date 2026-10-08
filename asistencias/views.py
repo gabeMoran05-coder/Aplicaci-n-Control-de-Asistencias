@@ -1285,11 +1285,6 @@ def _crear_notificaciones_whatsapp(registro):
     if not configuracion_whatsapp():
         return
     alumno = registro.alumno
-    mensaje = (
-        f"Hola, le informamos que {alumno.nombre_completo} llego a la escuela "
-        f"el {registro.fecha.strftime('%d/%m/%Y')} a las {registro.hora.strftime('%H:%M')}."
-    )
-
     notificaciones = []
     telefonos = set()
     for tutor in alumno.tutores.filter(activo=True, recibe_notificaciones=True):
@@ -1302,7 +1297,10 @@ def _crear_notificaciones_whatsapp(registro):
                 registro=registro,
                 tutor=tutor,
                 telefono_destino=telefono,
-                mensaje=mensaje,
+                mensaje=(
+                    f"Hola {tutor.nombre}. La entrada de {alumno.nombre_completo} "
+                    f"a la escuela quedo registrada el {registro.fecha.strftime('%d/%m/%Y')}."
+                ),
             )
         )
 

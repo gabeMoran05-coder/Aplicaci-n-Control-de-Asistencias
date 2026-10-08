@@ -170,7 +170,7 @@ class PrefecturaTests(TestCase):
         WHATSAPP_ENABLED=True,
         WHATSAPP_ACCESS_TOKEN="token-prueba",
         WHATSAPP_PHONE_NUMBER_ID="123456789",
-        WHATSAPP_TEMPLATE_NAME="aviso_asistencia_escolar",
+        WHATSAPP_TEMPLATE_NAME="asistencia_fmp",
         WHATSAPP_TEMPLATE_LANGUAGE="es_MX",
         WHATSAPP_API_VERSION="v26.0",
         WHATSAPP_DEFAULT_COUNTRY_CODE="52",
@@ -202,8 +202,11 @@ class PrefecturaTests(TestCase):
             solicitud = enviar.call_args.args[0]
             cuerpo = json.loads(solicitud.data)
             self.assertEqual(cuerpo["to"], "525551234567")
-            self.assertEqual(cuerpo["template"]["name"], "aviso_asistencia_escolar")
-            self.assertEqual(cuerpo["template"]["components"][0]["parameters"][0]["text"], self.alumno.nombre_completo)
+            self.assertEqual(cuerpo["template"]["name"], "asistencia_fmp")
+            self.assertEqual(
+                [parametro["text"] for parametro in cuerpo["template"]["components"][0]["parameters"]],
+                ["Maria", self.alumno.nombre_completo, timezone.localdate().strftime("%d/%m/%Y")],
+            )
             with self.captureOnCommitCallbacks(execute=True):
                 self.assertEqual(self.client.post(url, payload, content_type="application/json").json()["tipo"], "repetido")
             self.assertEqual(enviar.call_count, 1)
@@ -215,7 +218,7 @@ class PrefecturaTests(TestCase):
     @override_settings(
         WHATSAPP_ENABLED=True,
         WHATSAPP_ACCESS_TOKEN="token-prueba", WHATSAPP_PHONE_NUMBER_ID="123456789",
-        WHATSAPP_TEMPLATE_NAME="aviso_asistencia_escolar", WHATSAPP_API_VERSION="v26.0",
+        WHATSAPP_TEMPLATE_NAME="asistencia_fmp", WHATSAPP_API_VERSION="v26.0",
         WHATSAPP_TEMPLATE_LANGUAGE="es_MX", WHATSAPP_DEFAULT_COUNTRY_CODE="52",
     )
     def test_fallo_de_meta_no_revierte_asistencia(self):
