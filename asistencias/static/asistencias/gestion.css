@@ -51,5 +51,18 @@
 .gestion-check{margin-top:18px}
 .gestion-check label{display:flex;align-items:center;gap:9px;font-weight:500}
 .directory-notice{padding:12px 14px;margin-bottom:14px;border-left:3px solid #258b61;background:#fff;color:#205a44}
+.gestion-row-actions{display:flex;align-items:center;gap:12px;white-space:nowrap}
+.gestion-row-actions a,.gestion-row-actions button{color:#116d98;font:600 13px Inter,"Segoe UI",Arial,sans-serif;text-decoration:none}
+.gestion-row-actions form{margin:0}
+.gestion-row-actions button{padding:0;border:0;background:none;cursor:pointer}
+.gestion-row-actions a:hover,.gestion-row-actions button:hover{text-decoration:underline}
+.gestion-empty{text-align:center!important;color:#62727d;padding:25px!important}
+.gestion-password{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}
+.gestion-label{color:#52636f;font-size:12px;font-weight:600}
+.gestion-password .gestion-field>div{display:grid;gap:6px}
+.gestion-password .gestion-field>div>div{display:flex;align-items:center;gap:8px}
+.gestion-password .gestion-field input[type=radio]{width:16px;min-height:16px;accent-color:#1684b5}
+.gestion-password .gestion-field label{font-size:14px;font-weight:400;color:#17232b}
+.gestion-password small{color:#62727d}
 @media(max-width:760px){.gestion-heading{align-items:flex-start;flex-direction:column}.gestion-grid.three{grid-template-columns:1fr 1fr}}
-@media(max-width:550px){.gestion-grid,.gestion-grid.three{grid-template-columns:1fr}.gestion-promotion{grid-template-columns:repeat(3,minmax(0,1fr))}.gestion-actions{flex-wrap:wrap}.gestion-button{max-width:100%}.gestion-credentials dl{display:grid;gap:12px}}
+@media(max-width:550px){.gestion-grid,.gestion-grid.three,.gestion-password{grid-template-columns:1fr}.gestion-promotion{grid-template-columns:repeat(3,minmax(0,1fr))}.gestion-actions{flex-wrap:wrap}.gestion-button{max-width:100%}.gestion-credentials dl{display:grid;gap:12px}}

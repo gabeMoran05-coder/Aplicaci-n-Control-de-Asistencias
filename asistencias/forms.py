@@ -1,6 +1,60 @@
 from django import forms
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import Alumno, CicloEscolar, Grado, Grupo, Tutor
+
+
+class PrefectoCuentaForm(forms.ModelForm):
+    metodo_contrasena = forms.ChoiceField(
+        label="Contraseña",
+        choices=[("generar", "Generar contraseña segura"), ("manual", "Escribir contraseña")],
+        widget=forms.RadioSelect,
+        initial="generar",
+    )
+    contrasena_manual = forms.CharField(
+        label="Contraseña manual", required=False, strip=False,
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+    )
+
+    class Meta:
+        model = get_user_model()
+        fields = ["first_name", "last_name", "username"]
+        labels = {"first_name": "Nombre", "last_name": "Apellidos", "username": "Usuario"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields["metodo_contrasena"].choices = [
+                ("conservar", "Conservar contraseña actual"),
+                ("generar", "Generar nueva contraseña"),
+                ("manual", "Escribir nueva contraseña"),
+            ]
+            self.fields["metodo_contrasena"].initial = "conservar"
+        for nombre in ("first_name", "last_name", "username"):
+            self.fields[nombre].required = True
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        if get_user_model().objects.filter(username__iexact=username).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("Ese usuario ya existe.")
+        return username
+
+    def clean(self):
+        data = super().clean()
+        if data.get("metodo_contrasena") == "manual":
+            contrasena = data.get("contrasena_manual")
+            if not contrasena:
+                self.add_error("contrasena_manual", "Escribe una contraseña.")
+            elif len(contrasena) < 12:
+                self.add_error("contrasena_manual", "Usa al menos 12 caracteres.")
+            else:
+                try:
+                    validate_password(contrasena, user=self.instance)
+                except ValidationError as error:
+                    self.add_error("contrasena_manual", error)
+        return data
 
 
 class DestinoEscolarForm(forms.Form):

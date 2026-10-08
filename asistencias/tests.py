@@ -608,3 +608,80 @@ class GestionEscolarTests(TestCase):
         self.assertEqual(report.context["totales"]["presentes"], 1)
         perfil = self.client.get(reverse("asistencias:perfil_alumno", args=[alumnos[0].pk]), {"mes": "2026-10"})
         self.assertEqual(perfil.context["resumen"]["presentes"], 1)
+
+
+class GestionPrefectosTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.grupo_prefectos = Group.objects.get(name="Prefectos")
+        cls.director = User.objects.create_user(username="director-prueba", password="ClaveDirector12345")
+        cls.director.groups.add(Group.objects.get(name="Direccion"))
+        cls.ajeno = User.objects.create_user(username="ajeno-prueba", password="ClaveAjena12345")
+
+    def datos(self, username="prefecto-nuevo", metodo="generar", contrasena=""):
+        return {
+            "first_name": "Ana", "last_name": "Lopez", "username": username,
+            "metodo_contrasena": metodo, "contrasena_manual": contrasena,
+        }
+
+    def test_solo_direccion_puede_gestionar_cuentas(self):
+        url = reverse("asistencias:gestionar_prefectos")
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.client.force_login(self.ajeno)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertEqual(self.client.post(url, self.datos()).status_code, 403)
+        self.client.force_login(self.director)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_generacion_y_cambio_de_contrasena(self):
+        self.client.force_login(self.director)
+        response = self.client.post(reverse("asistencias:gestionar_prefectos"), self.datos())
+        self.assertEqual(response.status_code, 200)
+        clave = response.context["acceso"]["contrasena"]
+        prefecto = User.objects.get(username="prefecto-nuevo")
+        self.assertTrue(prefecto.check_password(clave))
+        self.assertNotEqual(prefecto.password, clave)
+        self.assertTrue(prefecto.groups.filter(name="Prefectos").exists())
+        self.assertNotContains(self.client.get(reverse("asistencias:gestionar_prefectos")), clave)
+
+        editar = reverse("asistencias:editar_prefecto", args=[prefecto.pk])
+        datos = self.datos(metodo="manual", contrasena="OtraClaveSegura123")
+        datos["first_name"] = "Adriana"
+        self.assertEqual(self.client.post(editar, datos).status_code, 302)
+        prefecto.refresh_from_db()
+        self.assertEqual(prefecto.first_name, "Adriana")
+        self.assertTrue(prefecto.check_password("OtraClaveSegura123"))
+        self.assertFalse(prefecto.check_password(clave))
+
+    def test_clave_debil_y_usuario_repetido_se_rechazan(self):
+        self.client.force_login(self.director)
+        url = reverse("asistencias:gestionar_prefectos")
+        response = self.client.post(url, self.datos(metodo="manual", contrasena="corta"))
+        self.assertContains(response, "12 caracteres")
+        self.assertFalse(User.objects.filter(username="prefecto-nuevo").exists())
+        self.client.post(url, self.datos(metodo="manual", contrasena="ClavePrefectoSegura123"))
+        response = self.client.post(url, self.datos(username="PREFECTO-NUEVO"))
+        self.assertContains(response, "Ese usuario ya existe")
+
+    def test_cupo_desactivacion_y_reactivacion(self):
+        self.client.force_login(self.director)
+        url = reverse("asistencias:gestionar_prefectos")
+        for indice in range(3):
+            self.client.post(url, self.datos(username=f"prefecto-{indice}"))
+        self.assertEqual(User.objects.filter(groups=self.grupo_prefectos, is_active=True).count(), 3)
+        response = self.client.post(url, self.datos(username="prefecto-cuarto"))
+        self.assertContains(response, "Ya hay tres prefectos activos")
+        self.assertFalse(User.objects.filter(username="prefecto-cuarto").exists())
+
+        primero = User.objects.get(username="prefecto-0")
+        estado = reverse("asistencias:cambiar_estado_prefecto", args=[primero.pk])
+        self.assertEqual(self.client.get(estado).status_code, 405)
+        self.client.post(estado, {"accion": "desactivar"})
+        primero.refresh_from_db()
+        self.assertFalse(primero.is_active)
+        self.assertFalse(self.client.login(username=primero.username, password="clave-inexistente"))
+        self.client.post(url, self.datos(username="prefecto-cuarto"))
+        self.client.post(estado, {"accion": "activar"})
+        primero.refresh_from_db()
+        self.assertFalse(primero.is_active)
+        self.assertEqual(User.objects.filter(groups=self.grupo_prefectos, is_active=True).count(), 3)

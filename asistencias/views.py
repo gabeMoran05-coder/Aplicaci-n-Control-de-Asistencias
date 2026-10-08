@@ -1,19 +1,22 @@
 ﻿import calendar
 import json
 import mimetypes
+import secrets
 from uuid import uuid4
 from functools import wraps
 from io import BytesIO
 from datetime import date, datetime, timedelta
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.contrib import messages
 from django.contrib.auth.views import LoginView, redirect_to_login
 from django.contrib.staticfiles.storage import staticfiles_storage
 from django.core import signing
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -22,7 +25,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from .forms import AlumnoAltaForm, AlumnoEditarForm, CicloNuevoForm, EventoEscolarForm, ListaPDFForm
+from .forms import AlumnoAltaForm, AlumnoEditarForm, CicloNuevoForm, EventoEscolarForm, ListaPDFForm, PrefectoCuentaForm
 from .cuentas import emitir_acceso
 from .ciclos import crear_ciclo_y_promover
 from .listas import extraer_lista_pdf
@@ -55,7 +58,7 @@ DIAS_CALENDARIO = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]
 
 
 def es_prefecto(user):
-    return user.is_authenticated and user.groups.filter(name=PREFECTOS_GROUP).exists()
+    return user.is_authenticated and user.is_active and user.groups.filter(name=PREFECTOS_GROUP).exists()
 
 
 def es_direccion(user):
@@ -292,6 +295,91 @@ def ciclos_escolares(request):
         "puede_promover": bool(origen and timezone.localdate() > origen.fecha_fin),
         "active_section": "ciclos",
     })
+
+
+def _prefectos_gestionables():
+    return get_user_model().objects.filter(groups__name=PREFECTOS_GROUP).exclude(
+        groups__name=DIRECCION_GROUP
+    ).exclude(is_superuser=True).distinct().order_by("-is_active", "first_name", "last_name", "username")
+
+
+@direccion_required
+@never_cache
+def gestionar_prefectos(request):
+    form = PrefectoCuentaForm(request.POST or None)
+    acceso = None
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            grupo = Group.objects.select_for_update().get(name=PREFECTOS_GROUP)
+            if get_user_model().objects.filter(groups=grupo, is_active=True).count() >= 3:
+                form.add_error(None, "Ya hay tres prefectos activos. Desactiva uno antes de agregar otro.")
+            else:
+                prefecto = form.save(commit=False)
+                contrasena = (secrets.token_urlsafe(18) if form.cleaned_data["metodo_contrasena"] == "generar"
+                              else form.cleaned_data["contrasena_manual"])
+                prefecto.set_password(contrasena)
+                prefecto.save()
+                prefecto.groups.add(grupo)
+                if form.cleaned_data["metodo_contrasena"] == "generar":
+                    acceso = {"usuario": prefecto.username, "contrasena": contrasena}
+                messages.success(request, f"Prefecto {prefecto.get_full_name()} agregado.")
+                form = PrefectoCuentaForm()
+    return render(request, "asistencias/gestionar_prefectos.html", {
+        "form": form, "prefectos": _prefectos_gestionables().annotate(
+            total_registros=Count("registros_asistencia", distinct=True)
+        ), "acceso": acceso,
+        "activos": get_user_model().objects.filter(groups__name=PREFECTOS_GROUP, is_active=True).count(),
+        "active_section": "prefectos",
+    })
+
+
+@direccion_required
+@never_cache
+def editar_prefecto(request, prefecto_id):
+    prefecto = get_object_or_404(_prefectos_gestionables(), pk=prefecto_id)
+    form = PrefectoCuentaForm(request.POST or None, instance=prefecto)
+    acceso = None
+    if request.method == "POST" and form.is_valid():
+        prefecto = form.save(commit=False)
+        metodo = form.cleaned_data["metodo_contrasena"]
+        if metodo != "conservar":
+            contrasena = (secrets.token_urlsafe(18) if metodo == "generar"
+                          else form.cleaned_data["contrasena_manual"])
+            prefecto.set_password(contrasena)
+            if metodo == "generar":
+                acceso = {"usuario": prefecto.username, "contrasena": contrasena}
+        prefecto.save()
+        messages.success(request, f"Cuenta de {prefecto.get_full_name()} actualizada.")
+        if not acceso:
+            return redirect("asistencias:gestionar_prefectos")
+        form = PrefectoCuentaForm(instance=prefecto)
+    return render(request, "asistencias/editar_prefecto.html", {
+        "form": form, "prefecto": prefecto, "acceso": acceso, "active_section": "prefectos",
+    })
+
+
+@direccion_required
+@require_POST
+def cambiar_estado_prefecto(request, prefecto_id):
+    if request.POST.get("accion") not in {"activar", "desactivar"}:
+        return HttpResponse("Accion invalida.", status=400)
+    with transaction.atomic():
+        grupo = Group.objects.select_for_update().get(name=PREFECTOS_GROUP)
+        prefecto = get_object_or_404(
+            get_user_model().objects.select_for_update().filter(groups=grupo)
+            .exclude(groups__name=DIRECCION_GROUP).exclude(is_superuser=True),
+            pk=prefecto_id,
+        )
+        activar = request.POST.get("accion") == "activar"
+        if activar and not prefecto.is_active and get_user_model().objects.filter(
+            groups=grupo, is_active=True
+        ).count() >= 3:
+            messages.error(request, "Ya hay tres prefectos activos. Desactiva uno primero.")
+        else:
+            prefecto.is_active = activar
+            prefecto.save(update_fields=["is_active"])
+            messages.success(request, "Acceso activado." if activar else "Acceso desactivado.")
+    return redirect("asistencias:gestionar_prefectos")
 
 
 @prefecto_required
