@@ -431,6 +431,11 @@ class PrefecturaTests(TestCase):
         self.client.force_login(self.prefecto_1)
         self.assertEqual(self.client.get(ruta).status_code, 403)
         self.client.force_login(self.director)
+        formulario = self.client.get(ruta)
+        self.assertContains(formulario, 'class="family-grid"')
+        self.assertContains(formulario, 'name="madre_notificar"')
+        self.assertContains(formulario, 'name="padre_notificar"')
+        self.assertContains(formulario, 'id="camera-input"')
         response = self.client.post(ruta, {
             "nombres": "Ana Maria", "apellido_paterno": "Lopez", "apellido_materno": "Rios",
             "matricula": self.alumno.matricula, "grupo": self.alumno.grupo_id,
