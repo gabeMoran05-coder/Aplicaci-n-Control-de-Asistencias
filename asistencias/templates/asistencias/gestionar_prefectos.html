@@ -1,7 +1,7 @@
 {% extends 'asistencias/gestion_base.html' %}
 {% block title %}Prefectos{% endblock %}
 {% block content %}
-<header class="gestion-heading"><div><h1>Prefectos</h1><p>{{ activos }} de 3 accesos activos</p></div><a class="gestion-link" href="{% url 'asistencias:prefecto_login' %}">Ir al acceso de prefectos</a></header>
+<header class="gestion-heading"><div><h1>Prefectos</h1><p>{{ activos }} de 3 accesos activos</p></div><a class="gestion-link" href="{% url 'asistencias:prefectos' %}">Abrir escaner</a></header>
 {% if messages %}{% for message in messages %}<div class="gestion-feedback {% if message.tags == 'error' %}gestion-error{% endif %}" role="status">{{ message }}</div>{% endfor %}{% endif %}
 {% if acceso %}<section class="gestion-credentials" role="status"><h2>Contraseña generada</h2><p>Guárdala en un lugar privado. No volverá a mostrarse.</p><dl><div><dt>Usuario</dt><dd>{{ acceso.usuario }}</dd></div><div><dt>Contraseña</dt><dd>{{ acceso.contrasena }}</dd></div></dl></section>{% endif %}
 <section class="gestion-section"><h2>Cuentas asignadas</h2><div class="gestion-table-wrap"><table><thead><tr><th>Prefecto</th><th>Usuario</th><th>Estado</th><th>Escaneos</th><th>Último acceso</th><th>Acciones</th></tr></thead><tbody>

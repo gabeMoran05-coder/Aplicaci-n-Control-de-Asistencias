@@ -107,19 +107,28 @@ class PrefecturaTests(TestCase):
         self.assertContains(scanner, "Uno")
         self.assertContains(scanner, 'rel="manifest"')
 
-    def test_direccion_puede_cambiar_a_cuenta_de_prefectura(self):
+    def test_direccion_puede_escanear_con_su_propia_cuenta(self):
         self.client.force_login(self.director)
-        self.assertRedirects(self.client.get(reverse("asistencias:prefectos")),
-                             reverse("asistencias:prefecto_login"))
-        response = self.client.post(reverse("asistencias:prefecto_login"), {
-            "username": "prefecto1", "password": "clave-prueba",
-        })
-        self.assertRedirects(response, reverse("asistencias:prefectos"))
-        self.assertContains(self.client.get(reverse("asistencias:prefectos")), "Prefectura")
-        self.client.force_login(self.director)
-        self.assertEqual(self.client.post(reverse("asistencias:registrar_prefecto"),
-                                          data=json.dumps({"codigo": self.alumno.codigo_qr}),
-                                          content_type="application/json").status_code, 403)
+        self.assertContains(self.client.get(reverse("asistencias:prefectos")), "Volver al panel")
+        response = self.client.post(
+            reverse("asistencias:registrar_prefecto"),
+            data=json.dumps({"codigo": self.alumno.codigo_qr}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RegistroAsistencia.objects.get(alumno=self.alumno).registrado_por, self.director)
+
+    def test_prefecto_desactivado_no_puede_escanear(self):
+        self.prefecto_1.is_active = False
+        self.prefecto_1.save(update_fields=["is_active"])
+        self.client.force_login(self.prefecto_1)
+        self.assertNotEqual(self.client.get(reverse("asistencias:prefectos")).status_code, 200)
+        self.assertNotEqual(self.client.post(
+            reverse("asistencias:registrar_prefecto"),
+            data=json.dumps({"codigo": self.alumno.codigo_qr}),
+            content_type="application/json",
+        ).status_code, 200)
+        self.assertFalse(RegistroAsistencia.objects.filter(alumno=self.alumno).exists())
 
     def test_escaneo_conserva_quien_registro_y_ajusto(self):
         url = reverse("asistencias:registrar_prefecto")

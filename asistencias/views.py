@@ -62,7 +62,11 @@ def es_prefecto(user):
 
 
 def es_direccion(user):
-    return user.is_authenticated and user.groups.filter(name=DIRECCION_GROUP).exists()
+    return user.is_authenticated and user.is_active and user.groups.filter(name=DIRECCION_GROUP).exists()
+
+
+def es_operador_escaneo(user):
+    return es_prefecto(user) or es_direccion(user)
 
 
 def direccion_required(view):
@@ -89,6 +93,17 @@ def prefecto_required(view):
     return wrapped
 
 
+def escaneo_required(view):
+    @login_required(login_url="asistencias:prefecto_login")
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        if not es_operador_escaneo(request.user):
+            raise PermissionDenied("Esta cuenta no tiene acceso al escaner.")
+        return view(request, *args, **kwargs)
+
+    return wrapped
+
+
 class DireccionLoginView(LoginView):
     template_name = "asistencias/direccion_login.html"
     next_page = "/control/"
@@ -105,8 +120,8 @@ class PrefectoLoginView(LoginView):
     next_page = "/prefectos/"
 
     def form_valid(self, form):
-        if not es_prefecto(form.get_user()):
-            form.add_error(None, "Esta cuenta no tiene acceso a Prefectura.")
+        if not es_operador_escaneo(form.get_user()):
+            form.add_error(None, "Esta cuenta no tiene acceso al escaner.")
             return self.form_invalid(form)
         return super().form_valid(form)
 
@@ -382,13 +397,16 @@ def cambiar_estado_prefecto(request, prefecto_id):
     return redirect("asistencias:gestionar_prefectos")
 
 
-@prefecto_required
+@escaneo_required
 @ensure_csrf_cookie
 def profesor_escaner(request):
     return render(
         request,
         "asistencias/kiosco_asistencia.html",
-        {"prefecto_nombre": request.user.get_full_name() or request.user.username},
+        {
+            "prefecto_nombre": request.user.get_full_name() or request.user.username,
+            "es_direccion": es_direccion(request.user),
+        },
     )
 
 
@@ -874,7 +892,7 @@ def limpiar_asistencia_manual(request):
 
 
 @require_POST
-@prefecto_required
+@escaneo_required
 def registrar_asistencia_prefecto(request):
     try:
         payload = json.loads(request.body.decode("utf-8"))
