@@ -1,10 +1,12 @@
 import json
+import importlib
 import os
 import tempfile
 from datetime import date, timedelta
 from io import BytesIO
 from unittest.mock import patch
 
+from django.apps import apps
 from django.contrib.auth.models import Group, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
@@ -452,6 +454,37 @@ class PrefecturaTests(TestCase):
         self.assertEqual(self.alumno.tipo_sangre, "O+")
         self.assertTrue(self.alumno.tutores.filter(parentesco=Tutor.Parentesco.MADRE, nombre="Maria Lopez").exists())
         self.assertTrue(self.alumno.tutores.get(parentesco=Tutor.Parentesco.MADRE).recibe_notificaciones)
+
+    def test_edicion_rechaza_nombre_y_telefono_invertidos(self):
+        self.client.force_login(self.director)
+        respuesta = self.client.post(reverse("asistencias:editar_alumno", args=[self.alumno.pk]), {
+            "nombres": self.alumno.nombres,
+            "apellido_paterno": self.alumno.apellido_paterno,
+            "matricula": self.alumno.matricula,
+            "grupo": self.alumno.grupo_id,
+            "padre_nombre": "5551234567",
+            "padre_telefono": "Pedro Lopez",
+        })
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "Escribe el nombre, no el numero de telefono.")
+        self.assertContains(respuesta, "Escribe un telefono de 10 a 15 digitos.")
+        self.assertFalse(self.alumno.tutores.filter(parentesco=Tutor.Parentesco.PADRE).exists())
+
+    def test_migracion_corrige_solo_tutores_invertidos(self):
+        invertido = Tutor.objects.create(
+            nombre="5551234567", telefono_whatsapp="Pedro Lopez",
+            parentesco=Tutor.Parentesco.PADRE,
+        )
+        correcto = Tutor.objects.create(
+            nombre="Maria Lopez", telefono_whatsapp="5559876543",
+            parentesco=Tutor.Parentesco.MADRE,
+        )
+        migracion = importlib.import_module("asistencias.migrations.0017_reparar_tutores_invertidos")
+        migracion.reparar_tutores_invertidos(apps, None)
+        invertido.refresh_from_db()
+        correcto.refresh_from_db()
+        self.assertEqual((invertido.nombre, invertido.telefono_whatsapp), ("Pedro Lopez", "5551234567"))
+        self.assertEqual((correcto.nombre, correcto.telefono_whatsapp), ("Maria Lopez", "5559876543"))
 
     def test_foto_privada_y_visible_en_credencial(self):
         image = BytesIO()

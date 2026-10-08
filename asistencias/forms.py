@@ -1,9 +1,27 @@
 from django import forms
+import re
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import Alumno, CicloEscolar, Grado, Grupo, Tutor
+
+
+def validar_datos_tutores(formulario, data):
+    for parentesco in ("madre", "padre"):
+        nombre = (data.get(f"{parentesco}_nombre") or "").strip()
+        telefono = (data.get(f"{parentesco}_telefono") or "").strip()
+        if nombre and not telefono:
+            formulario.add_error(f"{parentesco}_telefono", "Captura un telefono para este tutor.")
+        if telefono and not nombre:
+            formulario.add_error(f"{parentesco}_nombre", "Captura el nombre de este tutor.")
+        if nombre and not any(letra.isalpha() for letra in nombre):
+            formulario.add_error(f"{parentesco}_nombre", "Escribe el nombre, no el numero de telefono.")
+        if telefono and (not re.fullmatch(r"[+\d\s().-]+", telefono)
+                         or not 10 <= len(re.sub(r"\D", "", telefono)) <= 15):
+            formulario.add_error(f"{parentesco}_telefono", "Escribe un telefono de 10 a 15 digitos.")
+    return data
 
 
 class PrefectoCuentaForm(forms.ModelForm):
@@ -102,12 +120,7 @@ class AlumnoAltaForm(DestinoEscolarForm, forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        for parentesco in ("madre", "padre"):
-            if data.get(f"{parentesco}_nombre") and not data.get(f"{parentesco}_telefono"):
-                self.add_error(f"{parentesco}_telefono", "Captura un telefono para este tutor.")
-            if data.get(f"{parentesco}_telefono") and not data.get(f"{parentesco}_nombre"):
-                self.add_error(f"{parentesco}_nombre", "Captura el nombre de este tutor.")
-        return data
+        return validar_datos_tutores(self, data)
 
 
 class ListaPDFForm(DestinoEscolarForm):
@@ -193,12 +206,7 @@ class AlumnoEditarForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        for parentesco in ("madre", "padre"):
-            if data.get(f"{parentesco}_nombre") and not data.get(f"{parentesco}_telefono"):
-                self.add_error(f"{parentesco}_telefono", "Captura un telefono para este tutor.")
-            if data.get(f"{parentesco}_telefono") and not data.get(f"{parentesco}_nombre"):
-                self.add_error(f"{parentesco}_nombre", "Captura el nombre de este tutor.")
-        return data
+        return validar_datos_tutores(self, data)
 
 
 class EventoEscolarForm(forms.Form):
