@@ -184,6 +184,21 @@ class Alumno(TimeStampedModel):
         return self.grupo.grado.nombre
 
 
+class Inscripcion(TimeStampedModel):
+    alumno = models.ForeignKey(Alumno, on_delete=models.CASCADE, related_name="inscripciones")
+    ciclo_escolar = models.ForeignKey(CicloEscolar, on_delete=models.PROTECT, related_name="inscripciones")
+    grupo = models.ForeignKey(Grupo, on_delete=models.PROTECT, related_name="inscripciones")
+
+    class Meta:
+        ordering = ["-ciclo_escolar__fecha_inicio"]
+        constraints = [
+            models.UniqueConstraint(fields=["alumno", "ciclo_escolar"], name="inscripcion_unica_por_ciclo"),
+        ]
+
+    def __str__(self):
+        return f"{self.alumno} - {self.ciclo_escolar}: {self.grupo}"
+
+
 class CuentaAlumno(TimeStampedModel):
     alumno = models.OneToOneField(Alumno, on_delete=models.CASCADE, related_name="cuenta")
     usuario = models.OneToOneField("auth.User", on_delete=models.CASCADE, related_name="cuenta_alumno")

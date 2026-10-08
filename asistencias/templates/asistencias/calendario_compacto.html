@@ -1,4 +1,4 @@
-<section class="compact-calendar grade-{{ alumno.grupo.grado.orden }}" aria-label="Calendario de asistencia">
+<section class="compact-calendar grade-{{ grupo_periodo.grado.orden }}" aria-label="Calendario de asistencia">
     <div class="calendar-layout">
         <div class="month-board">
             <div class="month-bar"><h2 class="month-name">{{ mes_nombre }} {{ mes_inicio|date:'Y' }}</h2><div class="month-nav"><a href="?mes={{ mes_anterior|date:'Y-m' }}" aria-label="Mes anterior" title="Mes anterior">‹</a><a href="?mes={{ mes_siguiente|date:'Y-m' }}" aria-label="Mes siguiente" title="Mes siguiente">›</a></div></div>

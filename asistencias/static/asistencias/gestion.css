@@ -1,0 +1,55 @@
+.gestion-main{min-width:0}
+.gestion-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:0 0 18px}
+.gestion-heading h1{margin:4px 0 0;font-size:28px;font-weight:600}
+.gestion-heading h2{margin:0;font-size:18px;font-weight:600}
+.gestion-heading p{margin:5px 0 0;color:#62727d}
+.gestion-back,.gestion-link{color:#116d98;text-decoration:none;font-weight:600}
+.gestion-back:before{content:"‹ ";font-size:20px;vertical-align:-1px}
+.gestion-link:hover,.gestion-back:hover{text-decoration:underline}
+.gestion-section{padding:20px 0;border-top:1px solid #d7e1e6}
+.gestion-section h2,.gestion-credentials h2,.gestion-feedback h2{margin:0 0 16px;font-size:18px;font-weight:600}
+.gestion-form{max-width:980px}
+.gestion-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px 18px}
+.gestion-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.gestion-field{display:grid;align-content:start;gap:6px;min-width:0}
+.gestion-field label{color:#52636f;font-size:12px;font-weight:600}
+.gestion-field input,.gestion-field select{width:100%;min-height:42px;padding:8px 11px;border:1px solid #c9d6dc;border-radius:4px;background:white;color:#17232b;font:inherit}
+.gestion-field input[type=file]{padding:8px;background:#fff}
+.gestion-field input:focus,.gestion-field select:focus{outline:2px solid #1684b5;outline-offset:1px}
+.gestion-field .errorlist,.gestion-check .errorlist{margin:0;padding:0;list-style:none;color:#b53b3b;font-size:12px}
+.gestion-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
+.gestion-button{display:inline-grid;place-items:center;min-height:40px;padding:9px 15px;border:1px solid #c9d6dc;border-radius:4px;background:#fff;color:#17232b;text-decoration:none;font:600 13px Inter,"Segoe UI",Arial,sans-serif;cursor:pointer}
+.gestion-button.primary{background:#1684b5;border-color:#1684b5;color:#fff}
+.gestion-button:hover{filter:brightness(.95)}
+.gestion-error{padding:12px 14px;margin:0 0 15px;border-left:3px solid #bf4949;background:#fff0ef;color:#822a2a}
+.gestion-feedback{padding:16px 18px;margin:0 0 18px;border-left:3px solid #258b61;background:#fff}
+.gestion-feedback h2{margin-bottom:4px}
+.gestion-feedback p,.gestion-credentials p{margin:0;color:#62727d}
+.gestion-feedback .gestion-actions{justify-content:flex-start}
+.gestion-credentials{padding:17px 18px;margin:0 0 18px;border:1px solid #d7e1e6;background:#fff}
+.gestion-credentials dl{display:flex;gap:24px;margin:16px 0 0}
+.gestion-credentials dt{font-size:11px;color:#62727d;text-transform:uppercase}
+.gestion-credentials dd{margin:4px 0 0;font-weight:600;word-break:break-all}
+.gestion-table-wrap{width:100%;overflow-x:auto;border:1px solid #d7e1e6;background:#fff}
+.gestion-table-wrap table{width:100%;border-collapse:collapse;min-width:560px}
+.gestion-table-wrap th,.gestion-table-wrap td{padding:10px 12px;border-bottom:1px solid #e4eaee;text-align:left}
+.gestion-table-wrap th{background:#f5f8f9;color:#52636f;font-size:11px;text-transform:uppercase}
+.gestion-status{display:inline-block;padding:4px 8px;border-radius:3px;font-size:12px;font-weight:600;text-transform:capitalize}
+.gestion-status.nuevo{background:#dff4ea;color:#206a4c}
+.gestion-status.existente{background:#e4eef5;color:#35647e}
+.gestion-status.conflicto{background:#fbe5e5;color:#a02f2f}
+.gestion-preview .gestion-actions{margin-top:16px}
+.gestion-promotion{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin:0 0 22px;background:#d7e1e6;border:1px solid #d7e1e6}
+.gestion-promotion>div{display:grid;gap:6px;padding:15px;background:#fff}
+.gestion-promotion span{font-size:12px;font-weight:600;color:#52636f}
+.gestion-promotion strong{font-size:25px;font-weight:600}
+.gestion-promotion small{color:#62727d}
+.gestion-promotion .grade-1{border-top:4px solid #e5b92f}
+.gestion-promotion .grade-2{border-top:4px solid #d65b5b}
+.gestion-promotion .grade-3{border-top:4px solid #3599cc}
+.gestion-note{margin:13px 0 0;color:#62727d;line-height:1.5}
+.gestion-check{margin-top:18px}
+.gestion-check label{display:flex;align-items:center;gap:9px;font-weight:500}
+.directory-notice{padding:12px 14px;margin-bottom:14px;border-left:3px solid #258b61;background:#fff;color:#205a44}
+@media(max-width:760px){.gestion-heading{align-items:flex-start;flex-direction:column}.gestion-grid.three{grid-template-columns:1fr 1fr}}
+@media(max-width:550px){.gestion-grid,.gestion-grid.three{grid-template-columns:1fr}.gestion-promotion{grid-template-columns:repeat(3,minmax(0,1fr))}.gestion-actions{flex-wrap:wrap}.gestion-button{max-width:100%}.gestion-credentials dl{display:grid;gap:12px}}

@@ -9,15 +9,17 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         hoy = timezone.localdate()
-        ciclo_nombre = f"{hoy.year}-{hoy.year + 1}"
-        ciclo, ciclo_creado = CicloEscolar.objects.get_or_create(
-            nombre=ciclo_nombre,
-            defaults={
-                "fecha_inicio": hoy.replace(month=8, day=1),
-                "fecha_fin": hoy.replace(year=hoy.year + 1, month=7, day=15),
-                "activo": True,
-            },
-        )
+        ciclo = CicloEscolar.objects.filter(
+            fecha_inicio__lte=hoy, fecha_fin__gte=hoy
+        ).order_by("-fecha_inicio").first() or CicloEscolar.objects.order_by("-fecha_inicio").first()
+        ciclo_creado = ciclo is None
+        if ciclo is None:
+            ciclo = CicloEscolar.objects.create(
+                nombre=f"{hoy.year}-{hoy.year + 1}",
+                fecha_inicio=hoy.replace(month=8, day=1),
+                fecha_fin=hoy.replace(year=hoy.year + 1, month=7, day=15),
+                activo=True,
+            )
 
         if ciclo_creado:
             self.stdout.write(self.style.SUCCESS(f"Ciclo creado: {ciclo.nombre}"))

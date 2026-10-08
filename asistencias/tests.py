@@ -15,8 +15,9 @@ from django.utils import timezone
 from PIL import Image
 
 from .cuentas import emitir_acceso
-from .management.commands.importar_lista_asistencia import separar_nombre
-from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grado, Grupo, RegistroAsistencia, Tutor
+from .listas import extraer_lista_pdf, separar_nombre
+from .ciclos import crear_ciclo_y_promover
+from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grado, Grupo, Inscripcion, RegistroAsistencia, Tutor
 
 
 class PrefecturaTests(TestCase):
@@ -490,3 +491,120 @@ class PrefecturaTests(TestCase):
         self.assertEqual(self.client.post(eliminar, {"ciclo_id": ciclo.pk, "evento_id": evento.pk}).status_code, 302)
         self.assertFalse(EventoEscolar.objects.filter(pk=evento.pk).exists())
         self.assertTrue(DiaEscolar.objects.filter(ciclo_escolar=ciclo, fecha=date(2026, 10, 30), tipo="consejo").exists())
+
+
+class GestionEscolarTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ciclo = CicloEscolar.objects.get(nombre="2026-2027")
+        cls.grados = [Grado.objects.get_or_create(orden=orden, defaults={"nombre": nombre})[0]
+                      for orden, nombre in [(1, "1ro"), (2, "2do"), (3, "3ro")]]
+        cls.grupos = [Grupo.objects.get_or_create(
+            ciclo_escolar=cls.ciclo, grado=grado, nombre=letra
+        )[0] for grado, letra in zip(cls.grados, "ABC")]
+        cls.director = User.objects.create_user(username="director-gestion", password="clave-prueba")
+        cls.director.groups.add(Group.objects.get(name="Direccion"))
+        cls.ajeno = User.objects.create_user(username="ajeno-gestion", password="clave-prueba")
+
+    def test_alta_individual_protegida_crea_cuenta_e_inscripcion(self):
+        url = reverse("asistencias:agregar_alumno")
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.client.force_login(self.ajeno)
+        self.assertEqual(self.client.post(url, {}).status_code, 403)
+        self.client.force_login(self.director)
+        response = self.client.post(url, {
+            "ciclo": self.ciclo.pk, "grado": self.grados[0].pk, "letra": "A",
+            "matricula": "123456789", "nombres": "Ana", "apellido_paterno": "Lopez",
+            "apellido_materno": "Martinez",
+        })
+        self.assertEqual(response.status_code, 200)
+        alumno = Alumno.objects.get(matricula="123456789")
+        self.assertEqual(alumno.grupo, self.grupos[0])
+        self.assertEqual(Inscripcion.objects.get(alumno=alumno).grupo, self.grupos[0])
+        self.assertTrue(alumno.cuenta.usuario.check_password(response.context["acceso"]["contrasena"]))
+        self.assertIn("no-store", response.headers["Cache-Control"])
+
+    def test_importacion_pdf_con_vista_previa_y_conflictos(self):
+        import pymupdf
+
+        documento = pymupdf.open()
+        pagina = documento.new_page()
+        pagina.insert_text((40, 40), "ESCUELA\n1\nA\nMATUTINO\n2026-2027\n1\n123456789\nLOPEZ MARTINEZ ANA\n2\n987654321\nPEREZ GOMEZ LUIS", fontsize=11)
+        contenido = documento.tobytes()
+        documento.close()
+        with BytesIO(contenido) as archivo:
+            self.assertEqual(len(extraer_lista_pdf(archivo, "2026-2027", 1, "A")), 2)
+        url = reverse("asistencias:importar_lista")
+        self.client.force_login(self.director)
+        response = self.client.post(url, {
+            "ciclo": self.ciclo.pk, "grado": self.grados[0].pk, "letra": "A",
+            "archivo": SimpleUploadedFile("lista.pdf", contenido, content_type="application/pdf"),
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["vista"]), 2)
+        self.assertFalse(Alumno.objects.filter(matricula="123456789").exists())
+        token = response.context["vista_previa"]
+        confirmacion = self.client.post(url, {"accion": "confirmar", "vista_previa": token})
+        self.assertEqual(confirmacion.context["resultado"]["creados"], 2)
+        self.assertEqual(Inscripcion.objects.filter(ciclo_escolar=self.ciclo).count(), 2)
+        self.assertEqual(len(confirmacion.context["accesos"]), 2)
+        repetida = self.client.post(url, {"accion": "confirmar", "vista_previa": token})
+        self.assertEqual(repetida.context["resultado"]["creados"], 0)
+
+        alumno = Alumno.objects.get(matricula="123456789")
+        alumno.grupo = self.grupos[1]
+        alumno.save(update_fields=["grupo"])
+        conflicto = self.client.post(url, {"accion": "confirmar", "vista_previa": token})
+        self.assertIn("otro grupo", conflicto.context["error"])
+
+    def test_gestion_de_listas_y_ciclos_requiere_direccion(self):
+        for nombre in ("importar_lista", "ciclos_escolares"):
+            url = reverse(f"asistencias:{nombre}")
+            self.assertEqual(self.client.get(url).status_code, 302)
+            self.client.force_login(self.ajeno)
+            self.assertEqual(self.client.get(url).status_code, 403)
+            self.client.force_login(self.director)
+            self.assertEqual(self.client.get(url).status_code, 200)
+            self.client.logout()
+
+    def test_ciclo_no_promueve_antes_de_iniciar(self):
+        with patch("asistencias.ciclos.timezone.localdate", return_value=date(2027, 7, 20)):
+            with self.assertRaisesMessage(Exception, "cuando inicia el nuevo ciclo"):
+                crear_ciclo_y_promover(self.ciclo, "2027-2028", date(2027, 8, 30), date(2028, 7, 7))
+        self.assertFalse(CicloEscolar.objects.filter(nombre="2027-2028").exists())
+
+    def test_promocion_conserva_historial_y_egresa_tercero(self):
+        alumnos = []
+        for indice, grupo in enumerate(self.grupos):
+            alumno = Alumno.objects.create(
+                matricula=f"TEST-PROM-{indice}", nombres=f"Alumno{indice}",
+                apellido_paterno="Prueba", grupo=grupo, codigo_qr=f"qr-prom-{indice}",
+            )
+            Inscripcion.objects.create(alumno=alumno, ciclo_escolar=self.ciclo, grupo=grupo)
+            alumnos.append(alumno)
+        cuenta = emitir_acceso(alumnos[0].pk)
+        RegistroAsistencia.objects.create(
+            alumno=alumnos[0], fecha=date(2026, 10, 1), tipo="entrada", estado="a_tiempo"
+        )
+        with patch("asistencias.ciclos.timezone.localdate", return_value=date(2027, 8, 30)):
+            nuevo, promovidos, egresados = crear_ciclo_y_promover(
+                self.ciclo, "2027-2028", date(2027, 8, 30), date(2028, 7, 7)
+            )
+        self.assertEqual((promovidos, egresados), (2, 1))
+        self.assertEqual(Grupo.objects.filter(ciclo_escolar=nuevo).count(), 12)
+        for indice, alumno in enumerate(alumnos):
+            alumno.refresh_from_db()
+            if indice < 2:
+                self.assertEqual(alumno.grupo.grado.orden, indice + 2)
+                self.assertEqual(alumno.grupo.nombre, "AB"[indice])
+                self.assertEqual(alumno.inscripciones.count(), 2)
+            else:
+                self.assertFalse(alumno.activo)
+                self.assertEqual(alumno.inscripciones.count(), 1)
+        self.assertTrue(alumnos[0].cuenta.usuario.check_password(cuenta["contrasena"]))
+        self.client.force_login(self.director)
+        report = self.client.get(reverse("asistencias:reporte_ausencias"), {"fecha": "2026-10-01"})
+        self.assertEqual(report.context["totales"]["alumnos"], 3)
+        self.assertEqual(report.context["totales"]["presentes"], 1)
+        perfil = self.client.get(reverse("asistencias:perfil_alumno", args=[alumnos[0].pk]), {"mes": "2026-10"})
+        self.assertEqual(perfil.context["resumen"]["presentes"], 1)

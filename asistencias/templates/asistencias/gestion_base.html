@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Gestion escolar{% endblock %} - AsisteEscolar</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'asistencias/dashboard.css' %}">
+    <link rel="stylesheet" href="{% static 'asistencias/gestion.css' %}">
+</head>
+<body class="dashboard"><div class="app-frame">
+    {% include 'asistencias/dashboard_nav.html' with active_section=active_section %}
+    <div class="app-body">
+        {% include 'asistencias/dashboard_sidebar.html' with active_section=active_section %}
+        <main class="wrap gestion-main">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div></body>
+</html>

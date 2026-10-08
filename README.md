@@ -83,6 +83,21 @@ Y configura `DJANGO_ALLOWED_HOSTS` con la IP local de la computadora que corre e
 
 ## Despliegue en Render
 
+Desde Direccion, `Alumnos > Agregar alumno` permite el alta individual sin usar
+el administrador de Django. `Importar listas` acepta los PDF de asistencia de
+FMPTM, comprueba ciclo, grado, grupo y matriculas, y muestra una vista previa
+antes de guardar. El PDF se procesa en memoria y no se publica ni se conserva
+en el servidor. Este formato se lee con extraccion determinista, sin enviar
+datos de menores a un servicio de IA; un PDF escaneado como imagen requiere
+revision manual.
+
+`Ciclos escolares` crea el siguiente ciclo al iniciar sus clases: conserva
+matriculas, cuentas e historial, promueve 1ro a 2do y 2do a 3ro manteniendo
+la letra del grupo, y marca a 3ro como egresado. Los nuevos alumnos de 1ro
+se agregan manualmente o mediante sus listas PDF. Antes de ejecutar la
+promocion, respalda la base de datos y confirma las fechas oficiales del nuevo
+ciclo.
+
 Usa un **Web Service** de Python 3 conectado a la rama `main`. Deja vacio Root Directory.
 
 | Campo | Valor |

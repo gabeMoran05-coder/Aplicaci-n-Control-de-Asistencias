@@ -1,14 +1,17 @@
 ﻿import calendar
 import json
 import mimetypes
+from uuid import uuid4
 from functools import wraps
 from io import BytesIO
 from datetime import date, datetime, timedelta
 
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.contrib.auth.views import LoginView, redirect_to_login
 from django.contrib.staticfiles.storage import staticfiles_storage
-from django.core.exceptions import PermissionDenied
+from django.core import signing
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseRedirect, JsonResponse
@@ -19,9 +22,11 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from .forms import AlumnoEditarForm, EventoEscolarForm
+from .forms import AlumnoAltaForm, AlumnoEditarForm, CicloNuevoForm, EventoEscolarForm, ListaPDFForm
 from .cuentas import emitir_acceso
-from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grupo, NotificacionWhatsApp, RegistroAsistencia, Tutor
+from .ciclos import crear_ciclo_y_promover
+from .listas import extraer_lista_pdf
+from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grupo, Inscripcion, NotificacionWhatsApp, RegistroAsistencia, Tutor
 
 
 GRADOS_CONTROL = [
@@ -162,6 +167,131 @@ def estudiante_manifest(request):
         },
         content_type="application/manifest+json",
     )
+
+
+@direccion_required
+@never_cache
+def agregar_alumno(request):
+    form = AlumnoAltaForm(request.POST or None, request.FILES or None)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            alumno = form.save(commit=False)
+            alumno.grupo = form.cleaned_data["grupo_destino"]
+            alumno.codigo_qr = uuid4().hex
+            alumno.save()
+            Inscripcion.objects.create(
+                alumno=alumno, ciclo_escolar=alumno.grupo.ciclo_escolar, grupo=alumno.grupo
+            )
+        acceso = emitir_acceso(alumno.pk)
+        return render(request, "asistencias/agregar_alumno.html", {
+            "form": AlumnoAltaForm(), "alumno_creado": alumno, "acceso": acceso,
+            "active_section": "alumnos",
+        })
+    return render(request, "asistencias/agregar_alumno.html", {"form": form, "active_section": "alumnos"})
+
+
+@direccion_required
+@never_cache
+def importar_lista(request):
+    form = ListaPDFForm(request.POST or None, request.FILES or None)
+    contexto = {"form": form, "active_section": "importar"}
+    if request.method == "POST" and request.POST.get("accion") == "confirmar":
+        try:
+            datos = signing.loads(request.POST.get("vista_previa", ""), salt="importar-lista", max_age=600)
+            if datos["usuario_id"] != request.user.pk or len(datos["filas"]) > 50:
+                raise signing.BadSignature("Vista previa invalida")
+            grupo = Grupo.objects.select_related("ciclo_escolar", "grado").get(
+                pk=datos["grupo_id"], activo=True
+            )
+            filas = datos["filas"]
+            if len({fila["matricula"] for fila in filas}) != len(filas):
+                raise signing.BadSignature("Matriculas repetidas")
+            existentes = {alumno.matricula: alumno for alumno in Alumno.objects.filter(
+                matricula__in=[fila["matricula"] for fila in filas]
+            )}
+            conflictos = [fila["matricula"] for fila in filas if fila["matricula"] in existentes
+                          and (existentes[fila["matricula"]].grupo_id != grupo.id
+                               or not existentes[fila["matricula"]].activo)]
+            if conflictos:
+                raise ValueError("Hay matriculas que pertenecen a otro grupo o estan inactivas: " + ", ".join(conflictos))
+            nuevos = []
+            with transaction.atomic():
+                for fila in filas:
+                    alumno, creado = Alumno.objects.get_or_create(
+                        matricula=fila["matricula"],
+                        defaults={**fila, "grupo": grupo, "codigo_qr": uuid4().hex},
+                    )
+                    if alumno.grupo_id != grupo.id or not alumno.activo:
+                        raise ValueError(f"La matricula {alumno.matricula} cambio de grupo. Revisa la lista.")
+                    inscripcion, _ = Inscripcion.objects.get_or_create(
+                        alumno=alumno, ciclo_escolar=grupo.ciclo_escolar, defaults={"grupo": grupo}
+                    )
+                    if inscripcion.grupo_id != grupo.id:
+                        raise ValueError(f"La matricula {alumno.matricula} ya tiene otro grupo en este ciclo.")
+                    if creado:
+                        nuevos.append(alumno)
+            accesos = [emitir_acceso(alumno.pk) for alumno in nuevos]
+            contexto.update({"form": ListaPDFForm(), "resultado": {
+                "grupo": grupo, "creados": len(nuevos), "existentes": len(filas) - len(nuevos),
+            }, "accesos": accesos})
+        except (signing.BadSignature, KeyError, Grupo.DoesNotExist, ValueError) as error:
+            contexto["error"] = str(error) or "La vista previa caduco. Vuelve a subir el PDF."
+    elif request.method == "POST" and form.is_valid():
+        grupo = form.cleaned_data["grupo_destino"]
+        try:
+            filas = extraer_lista_pdf(
+                form.cleaned_data["archivo"], grupo.ciclo_escolar.nombre,
+                grupo.grado.orden, grupo.nombre,
+            )
+            if len(filas) > 50:
+                raise ValueError("La lista contiene mas de 50 alumnos; revisa el archivo.")
+            existentes = {alumno.matricula: alumno for alumno in Alumno.objects.filter(
+                matricula__in=[fila["matricula"] for fila in filas]
+            )}
+            vista = []
+            for fila in filas:
+                actual = existentes.get(fila["matricula"])
+                estado = "nuevo" if not actual else (
+                    "existente" if actual.grupo_id == grupo.id and actual.activo else "conflicto"
+                )
+                vista.append({**fila, "estado": estado})
+            contexto.update({"vista": vista, "grupo": grupo,
+                "conflictos": any(fila["estado"] == "conflicto" for fila in vista),
+                "vista_previa": signing.dumps({
+                    "usuario_id": request.user.pk, "grupo_id": grupo.pk, "filas": filas,
+                }, salt="importar-lista")})
+        except ValueError as error:
+            contexto["error"] = str(error)
+    return render(request, "asistencias/importar_lista.html", contexto)
+
+
+@direccion_required
+@never_cache
+def ciclos_escolares(request):
+    ciclos = list(CicloEscolar.objects.order_by("-fecha_inicio"))
+    origen = ciclos[0] if ciclos else None
+    form = CicloNuevoForm(request.POST or None, ciclo_origen=origen)
+    if request.method == "POST" and form.is_valid() and origen:
+        try:
+            ciclo, promovidos, egresados = crear_ciclo_y_promover(
+                origen, form.cleaned_data["nombre"], form.cleaned_data["fecha_inicio"],
+                form.cleaned_data["fecha_fin"],
+            )
+            messages.success(request, f"Ciclo {ciclo.nombre} creado: {promovidos} promovidos, {egresados} egresados.")
+            return redirect("asistencias:control")
+        except ValidationError as error:
+            form.add_error(None, error)
+    resumen = []
+    if origen:
+        for orden in (1, 2, 3):
+            resumen.append({"grado": orden, "total": Alumno.objects.filter(
+                activo=True, grupo__ciclo_escolar=origen, grupo__grado__orden=orden,
+            ).count()})
+    return render(request, "asistencias/ciclos_escolares.html", {
+        "form": form, "ciclos": ciclos, "origen": origen, "resumen": resumen,
+        "puede_promover": bool(origen and timezone.localdate() > origen.fecha_fin),
+        "active_section": "ciclos",
+    })
 
 
 @prefecto_required
@@ -306,13 +436,13 @@ def reporte_ausencias(request):
 
     cierre = _cierre_fecha(grupos[0].ciclo_escolar, fecha) if grupos else ("Fin de semana" if fecha.weekday() >= 5 else "")
 
-    alumnos_por_grupo = _alumnos_por_grupo(grupos)
+    alumnos_por_grupo = _alumnos_por_grupo(grupos, fecha=fecha)
     registros = RegistroAsistencia.objects.filter(
-        alumno__grupo__in=grupos,
-        alumno__activo=True,
+        Q(alumno__inscripciones__grupo__in=grupos) |
+        Q(alumno__inscripciones__isnull=True, alumno__grupo__in=grupos),
         fecha=fecha,
         tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
-    )
+    ).distinct()
     registros_por_alumno = {registro.alumno_id: registro for registro in registros}
     totales = {"alumnos": 0, "presentes": 0, "retardos": 0, "justificados": 0,
                "faltas": 0, "sin_registro": 0}
@@ -366,11 +496,11 @@ def perfil_alumno(request, alumno_id):
     alumno = get_object_or_404(
         Alumno.objects.select_related("grupo", "grupo__grado", "grupo__ciclo_escolar"),
         pk=alumno_id,
-        activo=True,
     )
     hoy = timezone.localdate()
     mes_inicio = _obtener_inicio_mes(request.GET.get("mes"), hoy)
     mes_fin = _ultimo_dia_mes(mes_inicio)
+    grupo_periodo = _grupo_en_mes(alumno, mes_inicio, mes_fin)
     calendario = _calendario_alumno(alumno, mes_inicio, mes_fin, hoy)
     dias_cerrados = {dia["fecha"] for semana in calendario for dia in semana if dia.get("cierre")}
 
@@ -397,6 +527,7 @@ def perfil_alumno(request, alumno_id):
 
     contexto = {
         "alumno": alumno,
+        "grupo_periodo": grupo_periodo,
         "can_manage_attendance": es_prefecto(request.user),
         "vista_direccion": True,
         "estados_manual": [("a_tiempo", "✓"), ("retardo", "Retardo"), ("ausente", "Falta")],
@@ -426,6 +557,10 @@ def editar_alumno(request, alumno_id):
             if form.cleaned_data["quitar_foto"] and not request.FILES.get("foto"):
                 alumno.foto = ""
             alumno.save()
+            Inscripcion.objects.update_or_create(
+                alumno=alumno, ciclo_escolar=alumno.grupo.ciclo_escolar,
+                defaults={"grupo": alumno.grupo},
+            )
             for parentesco in (Tutor.Parentesco.MADRE, Tutor.Parentesco.PADRE):
                 nombre = form.cleaned_data[f"{parentesco}_nombre"]
                 telefono = form.cleaned_data[f"{parentesco}_telefono"]
@@ -445,7 +580,7 @@ def editar_alumno(request, alumno_id):
 @never_cache
 @require_GET
 def foto_alumno(request, alumno_id):
-    alumno = get_object_or_404(Alumno, pk=alumno_id, activo=True)
+    alumno = get_object_or_404(Alumno, pk=alumno_id)
     if not alumno.foto:
         raise Http404("Foto no disponible")
     tipo = mimetypes.guess_type(alumno.foto.name)[0] or "application/octet-stream"
@@ -507,6 +642,7 @@ def _contexto_portal_alumno(alumno, mes):
     hoy = timezone.localdate()
     mes_inicio = _obtener_inicio_mes(mes, hoy)
     mes_fin = _ultimo_dia_mes(mes_inicio)
+    grupo_periodo = _grupo_en_mes(alumno, mes_inicio, mes_fin)
     registros = RegistroAsistencia.objects.filter(
         alumno=alumno, tipo=RegistroAsistencia.TipoRegistro.ENTRADA,
         fecha__range=(mes_inicio, mes_fin),
@@ -522,6 +658,7 @@ def _contexto_portal_alumno(alumno, mes):
                  "justificado": "justificados", "ausente": "ausentes"}[estado]] += 1
     return {
         "alumno": alumno,
+        "grupo_periodo": grupo_periodo,
         "calendario": calendario,
         "dias_calendario": DIAS_CALENDARIO,
         "mes_inicio": mes_inicio,
@@ -735,15 +872,24 @@ def _normalizar_codigo(valor):
     return codigo
 
 
-def _alumnos_por_grupo(grupos):
+def _alumnos_por_grupo(grupos, fecha=None):
     resultado = {grupo.id: [] for grupo in grupos}
-    alumnos = (
-        Alumno.objects.select_related("grupo", "grupo__grado")
-        .filter(grupo__in=grupos, activo=True)
-        .order_by("apellido_paterno", "apellido_materno", "nombres")
-    )
-    for alumno in alumnos:
-        resultado.setdefault(alumno.grupo_id, []).append(alumno)
+    if fecha is not None:
+        inscripciones = Inscripcion.objects.select_related("alumno").filter(
+            grupo__in=grupos,
+            ciclo_escolar__fecha_inicio__lte=fecha,
+            ciclo_escolar__fecha_fin__gte=fecha,
+        ).order_by("alumno__apellido_paterno", "alumno__apellido_materno", "alumno__nombres")
+        for inscripcion in inscripciones:
+            resultado[inscripcion.grupo_id].append(inscripcion.alumno)
+        for alumno in Alumno.objects.filter(inscripciones__isnull=True, grupo__in=grupos, activo=True):
+            resultado[alumno.grupo_id].append(alumno)
+    else:
+        alumnos = Alumno.objects.select_related("grupo", "grupo__grado").filter(
+            grupo__in=grupos, activo=True
+        ).order_by("apellido_paterno", "apellido_materno", "nombres")
+        for alumno in alumnos:
+            resultado[alumno.grupo_id].append(alumno)
     return resultado
 
 
@@ -786,7 +932,9 @@ def _calendario_alumno(alumno, mes_inicio, mes_fin, hoy):
         fecha__range=(mes_inicio, mes_fin),
     )
     registros_por_fecha = {registro.fecha: registro for registro in registros}
-    eventos_por_fecha = _eventos_por_fecha(alumno.grupo.ciclo_escolar, mes_inicio, mes_fin)
+    grupo_periodo = _grupo_en_mes(alumno, mes_inicio, mes_fin)
+    ciclo = grupo_periodo.ciclo_escolar
+    eventos_por_fecha = _eventos_por_fecha(ciclo, mes_inicio, mes_fin)
     semanas = []
 
     for semana in calendar.Calendar(firstweekday=0).monthdatescalendar(
@@ -796,12 +944,20 @@ def _calendario_alumno(alumno, mes_inicio, mes_fin, hoy):
         for dia in semana:
             fuera_mes = dia.month != mes_inicio.month
             registro = registros_por_fecha.get(dia)
-            dias.append(_crear_dia_calendario(alumno, dia, registro, hoy, fuera_mes, eventos_por_fecha.get(dia, [])))
+            dias.append(_crear_dia_calendario(alumno, ciclo, dia, registro, hoy, fuera_mes, eventos_por_fecha.get(dia, [])))
         semanas.append(dias)
     return semanas
 
 
-def _crear_dia_calendario(alumno, dia, registro, hoy, fuera_mes, eventos):
+def _grupo_en_mes(alumno, mes_inicio, mes_fin):
+    inscripcion = Inscripcion.objects.select_related("grupo__grado", "grupo__ciclo_escolar").filter(
+        alumno=alumno, ciclo_escolar__fecha_inicio__lte=mes_fin,
+        ciclo_escolar__fecha_fin__gte=mes_inicio,
+    ).order_by("-ciclo_escolar__fecha_inicio").first()
+    return inscripcion.grupo if inscripcion else alumno.grupo
+
+
+def _crear_dia_calendario(alumno, ciclo, dia, registro, hoy, fuera_mes, eventos):
     if fuera_mes:
         return {"fuera_mes": True, "fecha": dia}
 
@@ -810,7 +966,7 @@ def _crear_dia_calendario(alumno, dia, registro, hoy, fuera_mes, eventos):
         estado = "fin_semana" if dia.weekday() >= 5 else "sin_clases"
         etiqueta = cierre
         hora = registro.hora.strftime("%H:%M") if registro else ""
-    elif dia < alumno.grupo.ciclo_escolar.fecha_inicio or dia > alumno.grupo.ciclo_escolar.fecha_fin:
+    elif dia < ciclo.fecha_inicio or dia > ciclo.fecha_fin:
         estado, etiqueta, hora = "fuera_ciclo", "Fuera del ciclo", ""
     elif registro:
         estado = _estado_visual(registro.estado)
@@ -847,7 +1003,7 @@ def _crear_dia_calendario(alumno, dia, registro, hoy, fuera_mes, eventos):
             registro.modificado_por.get_full_name() or registro.modificado_por.username
             if registro and registro.modificado_por else ""
         ),
-        "editable": dia <= hoy and not cierre and alumno.grupo.ciclo_escolar.fecha_inicio <= dia <= alumno.grupo.ciclo_escolar.fecha_fin,
+        "editable": dia <= hoy and not cierre and alumno.activo and ciclo == alumno.grupo.ciclo_escolar and ciclo.fecha_inicio <= dia <= ciclo.fecha_fin,
     }
 
 

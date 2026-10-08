@@ -1,41 +1,15 @@
-import re
 from pathlib import Path
 from uuid import uuid4
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from asistencias.models import Alumno, Grupo
-
-
-PATRON_ALUMNO = re.compile(r"(?m)^(\d{1,2})\n(\d{9})\n([A-ZÁÉÍÓÚÑ ]+)\n")
-
-
-def separar_nombre(nombre):
-    partes = nombre.split()
-    if len(partes) < 3:
-        raise ValueError(f"Nombre incompleto: {nombre}")
-
-    def tomar_apellido(restantes):
-        if restantes[:2] == ["DE", "LA"]:
-            longitud = 3
-        elif restantes[0] in {"DE", "DEL"}:
-            longitud = 2
-        else:
-            longitud = 1
-        return " ".join(restantes[:longitud]), restantes[longitud:]
-
-    apellido_paterno, restantes = tomar_apellido(partes)
-    if not restantes:
-        raise ValueError(f"Falta apellido materno: {nombre}")
-    apellido_materno, nombres = tomar_apellido(restantes)
-    if not nombres:
-        raise ValueError(f"Faltan nombres: {nombre}")
-    return " ".join(nombres).title(), apellido_paterno.title(), apellido_materno.title()
+from asistencias.listas import extraer_lista_pdf
+from asistencias.models import Alumno, Grupo, Inscripcion
 
 
 class Command(BaseCommand):
-    help = "Importa una lista escolar en PDF por número de control, sin reemplazar alumnos existentes."
+    help = "Importa una lista escolar en PDF por matricula, sin reemplazar alumnos existentes."
 
     def add_arguments(self, parser):
         parser.add_argument("pdf", type=Path)
@@ -44,11 +18,6 @@ class Command(BaseCommand):
         parser.add_argument("--grupo", required=True)
 
     def handle(self, *args, **options):
-        try:
-            import pymupdf
-        except ImportError as error:
-            raise CommandError("Instala las dependencias de requirements.txt.") from error
-
         pdf = options["pdf"]
         if not pdf.is_file():
             raise CommandError(f"No existe el PDF: {pdf}")
@@ -59,49 +28,26 @@ class Command(BaseCommand):
             )
         except Grupo.DoesNotExist as error:
             raise CommandError("No existe ese grado, grupo y ciclo escolar.") from error
+        try:
+            with pdf.open("rb") as archivo:
+                filas = extraer_lista_pdf(archivo, options["ciclo"], options["grado"], options["grupo"].upper())
+        except ValueError as error:
+            raise CommandError(str(error)) from error
 
-        with pymupdf.open(pdf) as documento:
-            texto = "\n".join(pagina.get_text() for pagina in documento)
-        encabezado = re.compile(
-            rf"(?m)^\s*{options['grado']}\n{re.escape(options['grupo'].upper())}\n"
-            rf"[A-ZÁÉÍÓÚÑ]+\n{re.escape(options['ciclo'])}\n"
-        )
-        if not encabezado.search(texto):
-            raise CommandError("El grado, grupo o ciclo no coincide con el encabezado del PDF.")
-        filas = PATRON_ALUMNO.findall(texto)
-        numeros = [int(numero) for numero, _, _ in filas]
-        if not filas or numeros != list(range(1, len(filas) + 1)):
-            raise CommandError("No se pudo leer una lista consecutiva completa; no se importó nada.")
-        matriculas = [matricula for _, matricula, _ in filas]
-        if len(matriculas) != len(set(matriculas)):
-            raise CommandError("El PDF contiene números de control repetidos; no se importó nada.")
-
-        creados = 0
-        omitidos = 0
+        creados = omitidos = 0
         with transaction.atomic():
-            for _, matricula, nombre in filas:
-                try:
-                    nombres, paterno, materno = separar_nombre(nombre)
-                except ValueError as error:
-                    raise CommandError(str(error)) from error
+            for fila in filas:
                 alumno, nuevo = Alumno.objects.get_or_create(
-                    matricula=matricula,
-                    defaults={
-                        "nombres": nombres,
-                        "apellido_paterno": paterno,
-                        "apellido_materno": materno,
-                        "grupo": grupo,
-                        "codigo_qr": uuid4().hex,
-                    },
+                    matricula=fila["matricula"],
+                    defaults={**fila, "grupo": grupo, "codigo_qr": uuid4().hex},
                 )
                 if nuevo:
                     creados += 1
+                    Inscripcion.objects.create(alumno=alumno, ciclo_escolar=grupo.ciclo_escolar, grupo=grupo)
                 else:
                     omitidos += 1
                     if alumno.grupo_id != grupo.id:
-                        self.stderr.write(
-                            f"Matrícula {matricula} ya pertenece a otro grupo; no se modificó."
-                        )
+                        self.stderr.write(f"Matricula {fila['matricula']} ya pertenece a otro grupo; no se modifico.")
         self.stdout.write(self.style.SUCCESS(
             f"{grupo} ({options['ciclo']}): {creados} creados, {omitidos} existentes."
         ))

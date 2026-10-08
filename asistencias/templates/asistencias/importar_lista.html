@@ -1,0 +1,16 @@
+{% extends 'asistencias/gestion_base.html' %}
+{% block title %}Importar lista{% endblock %}
+{% block content %}
+<header class="gestion-heading"><div><a class="gestion-back" href="{% url 'asistencias:control' %}">Alumnos</a><h1>Importar lista</h1></div><a class="gestion-link" href="{% url 'asistencias:agregar_alumno' %}">Agregar un alumno</a></header>
+{% if error %}<div class="gestion-error" role="alert">{{ error }}</div>{% endif %}
+{% if resultado %}<section class="gestion-feedback" role="status"><h2>Lista importada</h2><p>{{ resultado.grupo }}: {{ resultado.creados }} nuevos, {{ resultado.existentes }} ya registrados.</p></section>{% endif %}
+{% if accesos %}<section class="gestion-credentials"><h2>Accesos nuevos</h2><p>Entrega cada contraseña de forma privada; esta tabla se muestra solo ahora.</p><div class="gestion-table-wrap"><table><thead><tr><th>Alumno</th><th>Usuario</th><th>Contraseña</th></tr></thead><tbody>{% for acceso in accesos %}<tr><td>{{ acceso.alumno.nombre_completo }}</td><td>{{ acceso.usuario }}</td><td>{{ acceso.contrasena }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+<form method="post" enctype="multipart/form-data" class="gestion-form">{% csrf_token %}<input type="hidden" name="accion" value="previsualizar">
+    {% if form.non_field_errors %}<div class="gestion-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <section class="gestion-section"><h2>Lista escolar en PDF</h2><div class="gestion-grid three">{% for field in form %}<div class="gestion-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}</div></section>
+    <footer class="gestion-actions"><button class="gestion-button primary" type="submit">Revisar lista</button></footer>
+</form>
+{% if vista %}<section class="gestion-section gestion-preview"><div class="gestion-heading"><div><h2>Vista previa: {{ grupo }}</h2><p>{{ grupo.ciclo_escolar.nombre }} · {{ vista|length }} alumnos</p></div></div><div class="gestion-table-wrap"><table><thead><tr><th>Matrícula</th><th>Alumno</th><th>Resultado</th></tr></thead><tbody>{% for fila in vista %}<tr><td>{{ fila.matricula }}</td><td>{{ fila.apellido_paterno }} {{ fila.apellido_materno }} {{ fila.nombres }}</td><td><span class="gestion-status {{ fila.estado }}">{{ fila.estado }}</span></td></tr>{% endfor %}</tbody></table></div>
+    {% if conflictos %}<div class="gestion-error" role="alert">Hay matrículas en otro grupo o inactivas. Corrige los perfiles antes de importar.</div>{% else %}<form method="post" class="gestion-actions">{% csrf_token %}<input type="hidden" name="accion" value="confirmar"><input type="hidden" name="vista_previa" value="{{ vista_previa }}"><button class="gestion-button primary" type="submit">Confirmar importación</button></form>{% endif %}
+</section>{% endif %}
+{% endblock %}

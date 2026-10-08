@@ -1,5 +1,86 @@
 from django import forms
-from .models import Alumno, Grupo, Tutor
+from django.utils import timezone
+from .models import Alumno, CicloEscolar, Grado, Grupo, Tutor
+
+
+class DestinoEscolarForm(forms.Form):
+    ciclo = forms.ModelChoiceField(queryset=CicloEscolar.objects.none(), label="Ciclo escolar")
+    grado = forms.ModelChoiceField(queryset=Grado.objects.filter(orden__in=[1, 2, 3]), label="Grado")
+    letra = forms.ChoiceField(choices=[(letra, letra) for letra in "ABCD"], label="Grupo")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["ciclo"].queryset = CicloEscolar.objects.filter(activo=True).order_by("-fecha_inicio")
+        self.fields["ciclo"].initial = self.fields["ciclo"].queryset.first()
+
+    def clean(self):
+        data = super().clean()
+        if all(data.get(key) for key in ("ciclo", "grado", "letra")):
+            grupo = Grupo.objects.filter(
+                ciclo_escolar=data["ciclo"], grado=data["grado"], nombre=data["letra"], activo=True
+            ).first()
+            if not grupo:
+                self.add_error("letra", "Ese grupo no existe en el ciclo seleccionado.")
+            else:
+                data["grupo_destino"] = grupo
+        return data
+
+
+class AlumnoAltaForm(DestinoEscolarForm, forms.ModelForm):
+    class Meta:
+        model = Alumno
+        fields = ["matricula", "nombres", "apellido_paterno", "apellido_materno",
+                  "fecha_nacimiento", "foto", "contacto_emergencia_nombre", "contacto_emergencia_telefono"]
+        widgets = {"fecha_nacimiento": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")}
+
+    def clean_foto(self):
+        foto = self.cleaned_data.get("foto")
+        if foto and foto.size > 5 * 1024 * 1024:
+            raise forms.ValidationError("La foto debe pesar menos de 5 MB.")
+        return foto
+
+
+class ListaPDFForm(DestinoEscolarForm):
+    archivo = forms.FileField(label="Lista PDF")
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data["archivo"]
+        if not archivo.name.lower().endswith(".pdf") or archivo.size > 10 * 1024 * 1024:
+            raise forms.ValidationError("Selecciona un PDF de hasta 10 MB.")
+        return archivo
+
+
+class CicloNuevoForm(forms.Form):
+    nombre = forms.RegexField(regex=r"^\d{4}-\d{4}$", max_length=9, label="Nuevo ciclo")
+    fecha_inicio = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}), label="Inicio de clases")
+    fecha_fin = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}), label="Fin de clases")
+    confirmar = forms.BooleanField(label="Confirmo la promocion y egreso de tercero")
+
+    def __init__(self, *args, ciclo_origen=None, **kwargs):
+        self.ciclo_origen = ciclo_origen
+        super().__init__(*args, **kwargs)
+        if ciclo_origen and ciclo_origen.nombre[:4].isdigit():
+            year = int(ciclo_origen.nombre[:4]) + 1
+            self.fields["nombre"].initial = f"{year}-{year + 1}"
+
+    def clean(self):
+        data = super().clean()
+        nombre, inicio, fin = (data.get(key) for key in ("nombre", "fecha_inicio", "fecha_fin"))
+        if nombre and int(nombre[:4]) + 1 != int(nombre[5:]):
+            self.add_error("nombre", "El ciclo debe indicar anos consecutivos.")
+        if nombre and inicio and int(nombre[:4]) != inicio.year:
+            self.add_error("nombre", "El nombre debe comenzar con el ano de inicio.")
+        if nombre and CicloEscolar.objects.filter(nombre=nombre).exists():
+            self.add_error("nombre", "Ese ciclo ya existe.")
+        if inicio and fin and inicio >= fin:
+            self.add_error("fecha_fin", "La fecha final debe ser posterior al inicio.")
+        if self.ciclo_origen and inicio and inicio <= self.ciclo_origen.fecha_fin:
+            self.add_error("fecha_inicio", "El nuevo ciclo debe iniciar despues del anterior.")
+        if self.ciclo_origen and inicio and inicio.year != self.ciclo_origen.fecha_inicio.year + 1:
+            self.add_error("fecha_inicio", "Selecciona el ciclo siguiente al actual.")
+        if inicio and inicio > timezone.localdate():
+            self.add_error("fecha_inicio", "La promocion se realiza al iniciar el nuevo ciclo, no antes.")
+        return data
 
 
 class AlumnoEditarForm(forms.ModelForm):

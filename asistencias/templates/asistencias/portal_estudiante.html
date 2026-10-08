@@ -14,10 +14,10 @@
 </style>
 <style>.preview-back{color:#116c9c;text-decoration:none}.preview-back:hover{text-decoration:underline}.preview-label{margin:14px 0 -6px;color:#687884;font-size:12px}</style>
 </head>
-<body class="grade-{{ alumno.grupo.grado.orden }}"><main class="wrap">
+<body class="grade-{{ grupo_periodo.grado.orden }}"><main class="wrap">
 <header class="top"><span class="brand"><i>✓</i>AsisteEscolar</span>{% if vista_previa %}<a class="preview-back" href="{% url 'asistencias:perfil_alumno' alumno.pk %}">Volver al perfil</a>{% else %}<form method="post" action="{% url 'asistencias:estudiante_logout' %}">{% csrf_token %}<button type="submit">Salir</button></form>{% endif %}</header>
 {% if vista_previa %}<p class="preview-label">Vista previa del alumno</p>{% endif %}
-<section class="identity"><h1>{{ alumno.nombres }} {{ alumno.apellido_paterno }}</h1><p>{{ alumno.grado_nombre }} {{ alumno.grupo.nombre }} · Mi asistencia</p></section>
+<section class="identity"><h1>{{ alumno.nombres }} {{ alumno.apellido_paterno }}</h1><p>{{ grupo_periodo.grado.nombre }} {{ grupo_periodo.nombre }} · Mi asistencia</p></section>
 <section class="metrics" aria-label="Resumen del mes"><div class="metric"><span>Asistencias</span><strong>{{ resumen.presentes }}</strong></div><div class="metric"><span>Retardos</span><strong>{{ resumen.retardos }}</strong></div><div class="metric"><span>Justificados</span><strong>{{ resumen.justificados }}</strong></div><div class="metric"><span>Faltas</span><strong>{{ resumen.ausentes }}</strong></div></section>
 <div class="calendar-section">{% include 'asistencias/calendario_compacto.html' %}</div>
 <p class="foot">Un día sin registro no significa una falta confirmada. Consulta cualquier diferencia con la escuela.</p>
