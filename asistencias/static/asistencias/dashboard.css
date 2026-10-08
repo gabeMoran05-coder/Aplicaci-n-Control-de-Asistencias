@@ -1,16 +1,16 @@
 :root{--dash-bg:#162a30;--dash-bg-2:#1c343b;--dash-page:#edf3f5;--dash-surface:#fff;--dash-line:#d7e1e6;--dash-text:#17232b;--dash-muted:#62727d;--dash-primary:#1684b5;--dash-primary-hover:#116d98}
-body.dashboard{min-height:100vh;background:var(--dash-bg);color:var(--dash-text);font-family:Inter,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:400}
+body.dashboard{min-height:100vh;background:var(--dash-page);color:var(--dash-text);font-family:Inter,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:400}
 .dashboard *{letter-spacing:0}
-.dashboard .app-frame{width:min(1440px,calc(100% - 48px));min-height:calc(100vh - 64px);margin:32px auto;background:var(--dash-page);box-shadow:0 12px 38px #07171b30}
-.dashboard .topbar{position:static;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0 20px;min-height:61px;padding:0 22px;background:#102329;border:0;color:#e9f1f3}
+.dashboard .app-frame{width:100%;min-height:100vh;margin:0;background:var(--dash-page);box-shadow:none}
+.dashboard .topbar{position:static;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0 20px;min-height:64px;padding:0 clamp(18px,2.5vw,40px);background:#102329;border:0;color:#e9f1f3}
 .dashboard .topbar .brand{display:inline-flex;align-items:center;gap:9px;color:#fff;text-decoration:none;font-size:18px;font-weight:600;white-space:nowrap}
-.dashboard .topbar .mark{display:grid;place-items:center;width:29px;height:29px;margin:0;border-radius:4px;background:var(--dash-primary);color:white;font-size:18px;font-weight:500}
+.dashboard .topbar .mark{display:grid;place-items:center;width:31px;height:31px;margin:0;border-radius:7px;background:var(--dash-primary);color:white;font-size:18px;font-weight:500}
 .dashboard .topbar .nav{display:flex;align-items:stretch;gap:2px;min-width:0;max-width:100%;min-height:61px;overflow-x:auto;scrollbar-width:thin}
 .dashboard .topbar .nav a,.dashboard .topbar .nav button{display:grid;place-items:center;min-height:61px;padding:0 13px;border:0;border-radius:0;background:transparent;color:#cbd9de;font:500 13px Inter,"Segoe UI",Arial,sans-serif;text-decoration:none;white-space:nowrap}
 .dashboard .topbar .nav a:hover,.dashboard .topbar .nav button:hover{background:var(--dash-bg-2);color:#fff}
 .dashboard .topbar .nav a.active{box-shadow:inset 0 -3px var(--dash-primary);background:var(--dash-bg-2);color:#fff}
 .dashboard .topbar .nav form{display:flex;margin:0}
-.dashboard .app-body{display:block;padding:22px}
+.dashboard .app-body{display:block;padding:clamp(18px,2.5vw,40px)}
 .dashboard .dashboard-sidebar{min-width:0;padding:13px 0;background:var(--dash-surface);border:1px solid var(--dash-line);border-radius:4px}
 .dashboard .sidebar-title{padding:5px 16px 11px;color:var(--dash-muted);font-size:11px;font-weight:600;text-transform:uppercase}
 .dashboard .sidebar-links{display:grid}
@@ -22,12 +22,12 @@ body.dashboard{min-height:100vh;background:var(--dash-bg);color:var(--dash-text)
 .dashboard h1{font-size:28px;line-height:1.2;font-weight:500}
 .dashboard .head,.dashboard .heading,.dashboard .top{margin:0 0 16px;align-items:center}
 .dashboard .subtitle,.dashboard .sub{margin-top:4px;color:var(--dash-muted)}
-.dashboard .button,.dashboard .primary,.dashboard .small,.dashboard .field input,.dashboard .field select{border-radius:4px;font-weight:400}
+.dashboard .button,.dashboard .primary,.dashboard .small,.dashboard .field input,.dashboard .field select{border-radius:7px;font-weight:400}
 .dashboard .button.primary,.dashboard .primary{background:var(--dash-primary);border-color:var(--dash-primary);color:#fff}
 .dashboard .button.primary:hover,.dashboard .primary:hover{background:var(--dash-primary-hover)}
-.dashboard .filters,.dashboard .stat,.dashboard .metric,.dashboard .table-card,.dashboard .group,.dashboard .qr,.dashboard .issued,.dashboard .table-wrap{border-color:var(--dash-line);border-radius:4px;box-shadow:none}
+.dashboard .filters,.dashboard .stat,.dashboard .metric,.dashboard .table-card,.dashboard .group,.dashboard .qr,.dashboard .issued,.dashboard .table-wrap{border-color:var(--dash-line);border-radius:8px;box-shadow:none}
 .dashboard .stats,.dashboard .summary{gap:10px;margin-bottom:14px}
-.dashboard .stat,.dashboard .metric{padding:12px 14px;background:#fff}
+.dashboard .stat,.dashboard .metric{padding:14px 16px;background:#fff}
 .dashboard .stat span,.dashboard .metric span,.dashboard .summary span{font-size:11px;font-weight:500;text-transform:uppercase;color:var(--dash-muted)}
 .dashboard .stat strong,.dashboard .metric strong,.dashboard .summary strong{margin-top:5px;font-size:21px;font-weight:500}
 .dashboard .filters{padding:13px;margin-bottom:14px}
@@ -37,7 +37,7 @@ body.dashboard{min-height:100vh;background:var(--dash-bg);color:var(--dash-text)
 .dashboard .pill,.dashboard .avatar{border-radius:4px;font-weight:500}
 .dashboard .data,.dashboard .family,.dashboard .attendance{min-width:0}
 .dashboard .overview{grid-template-columns:minmax(0,1fr) 232px;gap:14px;margin:16px 0}
-.dashboard .data,.dashboard .qr{padding:16px 18px;border:1px solid var(--dash-line);border-radius:4px;background:#fff}
+.dashboard .data,.dashboard .qr{padding:16px 18px;border:1px solid var(--dash-line);border-radius:8px;background:#fff}
 .dashboard .data h2,.dashboard .family h2,.dashboard .attendance h2{margin:0 0 12px;font-size:18px;font-weight:500}
 .dashboard .fields{grid-template-columns:repeat(2,minmax(0,1fr));border:0;gap:12px 16px}
 .dashboard .field{padding:0;border:0}
@@ -51,9 +51,9 @@ body.dashboard{min-height:100vh;background:var(--dash-bg);color:var(--dash-text)
 .dashboard .qr a{display:grid;place-items:center;min-height:34px;margin:5px 0 0;padding:5px 8px;border:1px solid var(--dash-primary);border-radius:4px;background:var(--dash-primary);color:#fff;font-size:13px;text-decoration:none}
 .dashboard .qr a.secondary{background:#fff;color:var(--dash-primary)}
 .dashboard .summary{padding:0;border:0}
-.dashboard .summary>div{padding:11px 13px;border:1px solid var(--dash-line);border-left:3px solid #22a76c;border-radius:4px;background:#fff}
+.dashboard .summary>div{padding:11px 13px;border:1px solid var(--dash-line);border-left:3px solid #22a76c;border-radius:8px;background:#fff}
 .dashboard .summary>div:nth-child(2){border-left-color:#d9a222}.dashboard .summary>div:nth-child(3){border-left-color:#886bea}.dashboard .summary>div:nth-child(4){border-left-color:#d65b5b}
-.dashboard .attendance,.dashboard .family{padding:16px 18px;margin:0 0 14px;border:1px solid var(--dash-line);border-radius:4px;background:#fff}
+.dashboard .attendance,.dashboard .family{padding:16px 18px;margin:0 0 14px;border:1px solid var(--dash-line);border-radius:8px;background:#fff}
 .dashboard .family table{background:transparent}
 .dashboard .family{overflow-x:auto}
 .dashboard .family th,.dashboard .family td{border:0;border-bottom:1px solid var(--dash-line)}
@@ -61,7 +61,7 @@ body.dashboard{min-height:100vh;background:var(--dash-bg);color:var(--dash-text)
 .dashboard .head .actions{margin-left:auto}
 .dashboard .month-head{margin-top:8px}
 .dashboard .director-month-layout{display:grid;grid-template-columns:minmax(0,475px) minmax(0,1fr);gap:14px;align-items:stretch;margin:16px 0 21px}
-.dashboard .director-month,.dashboard .month-agenda{min-width:0;padding:15px 18px;border:1px solid var(--dash-line);border-radius:4px;background:#fff}
+.dashboard .director-month,.dashboard .month-agenda{min-width:0;padding:15px 18px;border:1px solid var(--dash-line);border-radius:8px;background:#fff}
 .dashboard .director-month .month-head{margin:0 0 9px}
 .dashboard .director-month .legend{margin:10px 0 0}
 .dashboard .month-agenda h2{margin:1px 0 18px;font-size:18px;font-weight:500}
