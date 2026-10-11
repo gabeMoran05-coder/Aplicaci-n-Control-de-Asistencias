@@ -1,4 +1,6 @@
 import json
+import hashlib
+import hmac
 import importlib
 import os
 import tempfile
@@ -23,6 +25,36 @@ from .ciclos import crear_ciclo_y_promover
 from .telefonos import opciones_paises, telefono_para_formulario, telefono_visible
 from .whatsapp import normalizar_telefono as telefono_whatsapp
 from .models import Alumno, CicloEscolar, CuentaAlumno, DiaEscolar, EventoEscolar, Grado, Grupo, Inscripcion, NotificacionWhatsApp, RegistroAsistencia, Tutor
+
+
+class WhatsAppWebhookTests(TestCase):
+    url = "/webhooks/whatsapp/"
+
+    @override_settings(WHATSAPP_WEBHOOK_VERIFY_TOKEN="")
+    def test_no_verifica_sin_token_configurado(self):
+        self.assertEqual(self.client.get(self.url, {
+            "hub.mode": "subscribe", "hub.verify_token": "cualquiera", "hub.challenge": "123"
+        }).status_code, 503)
+
+    @override_settings(WHATSAPP_WEBHOOK_VERIFY_TOKEN="token-de-prueba")
+    def test_verificacion_exige_token_correcto(self):
+        query = {"hub.mode": "subscribe", "hub.verify_token": "incorrecto", "hub.challenge": "123"}
+        self.assertEqual(self.client.get(self.url, query).status_code, 403)
+        query["hub.verify_token"] = "token-de-prueba"
+        response = self.client.get(self.url, query)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"123")
+
+    @override_settings(WHATSAPP_APP_SECRET="secreto-de-prueba")
+    def test_eventos_exigen_firma_valida(self):
+        body = b'{"object":"whatsapp_business_account","entry":[]}'
+        self.assertEqual(self.client.post(self.url, body, content_type="application/json").status_code, 403)
+        signature = "sha256=" + hmac.new(b"secreto-de-prueba", body, hashlib.sha256).hexdigest()
+        response = self.client.post(
+            self.url, body, content_type="application/json",
+            HTTP_X_HUB_SIGNATURE_256=signature,
+        )
+        self.assertEqual(response.status_code, 200)
 
 
 class PrefecturaTests(TestCase):

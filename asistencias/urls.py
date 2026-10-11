@@ -4,10 +4,12 @@ from django.contrib.auth.views import LogoutView
 from django.views.generic import RedirectView
 
 from . import views
+from .webhooks import whatsapp_webhook
 
 app_name = "asistencias"
 
 urlpatterns = [
+    path("webhooks/whatsapp/", whatsapp_webhook, name="whatsapp_webhook"),
     path("", views.control_semanal, name="inicio"),
     path("control/", views.control_semanal, name="control"),
     path("control/alumnos/agregar/", views.agregar_alumno, name="agregar_alumno"),

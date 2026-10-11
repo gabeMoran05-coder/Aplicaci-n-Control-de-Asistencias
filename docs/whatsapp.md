@@ -40,3 +40,18 @@ No pongas estos valores en GitHub. Sin `WHATSAPP_ENABLED=True` y las cuatro vari
 avisos ni se intenta llamar a Meta. Tras configurarlas, los avisos nuevos se
 envian al registrar la entrada. Los anteriores no se envian automaticamente
 para evitar avisos tardios.
+
+## Webhook de Meta (opcional para enviar avisos)
+
+La URL de devolucion de llamada es
+`https://fmp-control.onrender.com/webhooks/whatsapp/`. En **Render > FMP Control >
+Environment**, crea `WHATSAPP_WEBHOOK_VERIFY_TOKEN` con un valor aleatorio largo y
+`WHATSAPP_APP_SECRET` con la clave secreta de la app de Meta. No publiques ninguno
+en GitHub, capturas ni mensajes. En **Meta > Configurar webhooks**, pega la URL y
+el mismo valor de `WHATSAPP_WEBHOOK_VERIFY_TOKEN` en **Token de verificacion**;
+despues pulsa **Verificar y guardar**. La app de Django debe haber terminado de
+desplegarse y las variables deben estar guardadas antes de verificar.
+
+El webhook comprueba la firma de los eventos entrantes y los confirma, pero
+todavia no procesa respuestas ni estados de entrega. No es necesario configurarlo
+para el envio saliente de la plantilla de asistencia.
